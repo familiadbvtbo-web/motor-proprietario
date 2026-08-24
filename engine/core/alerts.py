@@ -1,22 +1,7 @@
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class Alert:
-    alert_id: str
-    asset: str
-    timeframe: str
-    level: str
-    message: str
-    timestamp: int
-
-
-def valid_alert(alert: Alert) -> bool:
-    return bool(
-        alert.alert_id
-        and alert.asset
-        and alert.timeframe
-        and alert.level
-        and alert.message
-        and alert.timestamp > 0
-    )
+def alert_reason(previous, current):
+    reasons=[]
+    if current.mis-previous.mis >= 10: reasons.append("MIS_UP")
+    if current.fsi-previous.fsi >= 15: reasons.append("FSI_SHIFT")
+    if current.pfs-previous.pfs >= 15: reasons.append("PFS_SHIFT")
+    if current.regime != previous.regime: reasons.append("REGIME_CHANGE")
+    return reasons
