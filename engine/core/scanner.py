@@ -1,17 +1,6 @@
-from dataclasses import dataclass
-
-
-@dataclass(frozen=True)
-class ScanResult:
-    asset: str
-    timeframe: str
-    score: float
-    decision: str
-
-
-def rank(results):
+def rank_assets(states):
     return sorted(
-        results,
-        key=lambda item: item.score,
+        [s for s in states if s.data_quality != "BAD"],
+        key=lambda s: s.mis,
         reverse=True
     )
