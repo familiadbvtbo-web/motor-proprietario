@@ -1,4 +1,4 @@
-name: Android Build + Forex Validation
+name: Android Build
 
 on:
   push:
@@ -27,14 +27,53 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Validate Forex Python syntax
+      - name: Validate Forex Python
         run: |
-          python forex/test_gateway_syntax.py
+          python -m py_compile forex/*.py
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: "8.9"
+
+      - name: Inject Twelve Data API key
+        env:
+          TWELVE_DATA_API_KEY: ${{ secrets.TWELVE_DATA_API_KEY }}
+        run: |
+          if [ -z "$TWELVE_DATA_API_KEY" ]; then
+            echo "ERROR: TWELVE_DATA_API_KEY is not configured"
+            exit 1
+          fi
+
+          mkdir -p app/src/main/java/com/motorproprietario/app
+
+          cat > app/src/main/java/com/motorproprietario/app/ApiConfig.kt <<'EOF'
+          package com.motorproprietario.app
+
+          object ApiConfig {
+              const val TWELVE_DATA_API_KEY = "PLACEHOLDER_API_KEY"
+          }
+          EOF
+
+          python - <<'PY'
+          import os
+          from pathlib import Path
+
+          path = Path(
+              "app/src/main/java/com/motorproprietario/app/ApiConfig.kt"
+          )
+
+          text = path.read_text()
+
+          key = os.environ["TWELVE_DATA_API_KEY"]
+
+          text = text.replace(
+              "PLACEHOLDER_API_KEY",
+              key.replace("\\", "\\\\").replace('"', '\\"')
+          )
+
+          path.write_text(text)
+          PY
 
       - name: Build debug APK
         run: gradle :app:assembleDebug
@@ -42,5 +81,5 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: motor-proprietario-forex-debug
+          name: motor-proprietario-realtime-debug
           path: app/build/outputs/apk/debug/app-debug.apk
