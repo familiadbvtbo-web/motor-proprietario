@@ -23,29 +23,32 @@ class MT5Gateway:
         if not mt5.initialize():
             return False
 
-        selected = mt5.symbol_select(
-            self.symbol,
-            True
-        )
+        if not mt5.symbol_select(self.symbol, True):
+            mt5.shutdown()
+            return False
 
-        return bool(selected)
+        return True
 
     def disconnect(self):
         mt5.shutdown()
 
     def get_tick(self) -> ForexTick:
 
-        tick = mt5.symbol_info_tick(
-            self.symbol
-        )
+        tick = mt5.symbol_info_tick(self.symbol)
 
         if tick is None:
+            error = mt5.last_error()
             raise RuntimeError(
-                "MT5_TICK_UNAVAILABLE"
+                f"MT5_TICK_UNAVAILABLE: {error}"
             )
 
         bid = float(tick.bid)
         ask = float(tick.ask)
+
+        if bid <= 0 or ask <= 0:
+            raise RuntimeError(
+                "MT5_INVALID_TICK"
+            )
 
         return ForexTick(
             symbol=self.symbol,
@@ -54,32 +57,3 @@ class MT5Gateway:
             ask=ask,
             spread=ask - bid
         )
-
-
-def main():
-
-    gateway = MT5Gateway("EURUSD")
-
-    if not gateway.connect():
-        raise RuntimeError(
-            "MT5_CONNECTION_FAILED"
-        )
-
-    try:
-
-        tick = gateway.get_tick()
-
-        print(
-            f"{tick.symbol} "
-            f"BID={tick.bid} "
-            f"ASK={tick.ask} "
-            f"SPREAD={tick.spread}"
-        )
-
-    finally:
-
-        gateway.disconnect()
-
-
-if __name__ == "__main__":
-    main()
