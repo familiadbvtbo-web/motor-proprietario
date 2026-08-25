@@ -23,42 +23,77 @@ data class MarketData(
 ) {
 
     /**
-     * Converte timestamp Unix em segundos para milissegundos.
+     * Converte automaticamente Unix timestamp em segundos
+     * para milissegundos.
      *
-     * O MT5/Python normalmente fornece Unix timestamp em segundos.
-     * O Android trabalha com System.currentTimeMillis().
+     * Se o timestamp já estiver em milissegundos,
+     * mantém o valor original.
      */
     fun timestampMs(): Long {
+
         return when {
-            timestamp <= 0L -> 0L
-            timestamp < 10_000_000_000L -> timestamp * 1000L
-            else -> timestamp
+
+            timestamp <= 0L ->
+                0L
+
+            timestamp < 10_000_000_000L ->
+                timestamp * 1000L
+
+            else ->
+                timestamp
         }
     }
 
+    /**
+     * Verifica se o timestamp ainda está dentro
+     * da janela de validade do motor.
+     *
+     * 120 segundos foi padronizado com o
+     * RealtimeMarketAnalyzer.
+     */
     fun isFresh(
         now: Long,
-        maxAgeMs: Long = 60_000L
+        maxAgeMs: Long = 120_000L
     ): Boolean {
 
-        val normalizedTimestamp = timestampMs()
+        val normalizedTimestamp =
+            timestampMs()
 
         return normalizedTimestamp > 0L &&
                 now >= normalizedTimestamp &&
                 now - normalizedTimestamp <= maxAgeMs
     }
 
-    fun isUsable(now: Long): Boolean {
+    /**
+     * Verificação principal de utilização do mercado.
+     *
+     * O dado precisa:
+     * - possuir preço válido;
+     * - estar marcado como GOOD;
+     * - possuir timestamp válido;
+     * - estar dentro da janela de 120 segundos.
+     */
+    fun isUsable(
+        now: Long
+    ): Boolean {
 
         return price > 0.0 &&
                 dataQuality == "GOOD" &&
-                isFresh(now)
+                isFresh(
+                    now,
+                    120_000L
+                )
     }
 
     /**
-     * Validação adicional para dados provenientes do Forex.
+     * Validação específica para Forex.
+     *
+     * Além das validações normais,
+     * exige BID e ASK válidos.
      */
-    fun isForexUsable(now: Long): Boolean {
+    fun isForexUsable(
+        now: Long
+    ): Boolean {
 
         return isUsable(now) &&
                 asset.isNotBlank() &&
