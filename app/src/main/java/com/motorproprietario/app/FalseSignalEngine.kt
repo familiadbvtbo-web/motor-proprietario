@@ -1,0 +1,60 @@
+package com.motorproprietario.app
+
+data class FalseSignalInput(
+    val structureContradiction: Double,
+    val momentumDivergence: Double,
+    val volumeMismatch: Double,
+    val confirmationFailure: Double,
+    val timeframeConflict: Double
+)
+
+data class FalseSignalResult(
+    val risk: Double,
+    val level: String,
+    val blocked: Boolean
+)
+
+object FalseSignalEngine {
+
+    fun evaluate(input: FalseSignalInput): FalseSignalResult {
+
+        val structure =
+            input.structureContradiction.coerceIn(0.0, 100.0)
+
+        val momentum =
+            input.momentumDivergence.coerceIn(0.0, 100.0)
+
+        val volume =
+            input.volumeMismatch.coerceIn(0.0, 100.0)
+
+        val confirmation =
+            input.confirmationFailure.coerceIn(0.0, 100.0)
+
+        val timeframe =
+            input.timeframeConflict.coerceIn(0.0, 100.0)
+
+        val risk =
+            structure * 0.25 +
+            momentum * 0.20 +
+            volume * 0.15 +
+            confirmation * 0.20 +
+            timeframe * 0.20
+
+        val normalizedRisk =
+            risk.coerceIn(0.0, 100.0)
+
+        val level = when {
+            normalizedRisk >= 80.0 -> "CRÍTICO"
+            normalizedRisk >= 60.0 -> "ALTO"
+            normalizedRisk >= 40.0 -> "MODERADO"
+            normalizedRisk >= 20.0 -> "BAIXO"
+            else -> "MUITO BAIXO"
+        }
+
+        return FalseSignalResult(
+            risk = normalizedRisk,
+            level = level,
+            blocked = normalizedRisk >= 80.0
+        )
+    }
+}
