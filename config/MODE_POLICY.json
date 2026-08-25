@@ -1,0 +1,7 @@
+{
+  "LIVE_DATA": true,
+  "DEGRADED_MODE": true,
+  "OFFLINE_MODE": true,
+  "PAPER_TRADING": true,
+  "REAL_EXECUTION": false
+}
