@@ -34,6 +34,23 @@ class MainActivity : AppCompatActivity() {
         RealTimeQuote? = null
 
     private var analyzing = false
+   
+    private val candleCache =
+    LinkedHashMap<String, List<MarketCandle>>()
+
+private val lastCandleUpdate =
+    HashMap<String, Long>()
+
+private val candleIntervals =
+    mapOf(
+        "M1" to 60_000L,
+        "M5" to 300_000L,
+        "M15" to 900_000L,
+        "M30" to 1_800_000L,
+        "H1" to 3_600_000L,
+        "H4" to 14_400_000L,
+        "D1" to 86_400_000L
+    )
 
     private var sequenceStage =
         SequenceStage.S0
