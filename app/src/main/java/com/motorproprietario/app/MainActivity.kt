@@ -32,8 +32,10 @@ class MainActivity : AppCompatActivity() {
     private var lastQuote:
         RealTimeQuote? = null
 
-    private var analyzing =
-        false
+    private var analyzing = false
+
+    private var sequenceStage =
+        SequenceStage.S0
 
     private val refreshTask =
         object : Runnable {
@@ -308,7 +310,7 @@ class MainActivity : AppCompatActivity() {
                 val now =
                     System.currentTimeMillis()
 
-                val market =
+                val realtime =
                     RealtimeMarketAnalyzer.analyze(
                         symbol =
                             selectedAsset,
@@ -326,39 +328,121 @@ class MainActivity : AppCompatActivity() {
                             now
                     )
 
+                val primary =
+                    realtime.metrics["M15"]
+                        ?: realtime.metrics.values.first()
+
+                /*
+                 * O sinal precisa ser confirmado
+                 * pelos indicadores quantitativos.
+                 */
+                val signalDetected =
+                    realtime.direction !=
+                        "NEUTRO"
+
+                val confirmation =
+                    realtime.mtfConfluence >=
+                        60.0
+
+                val continuation =
+                    when (
+                        realtime.direction
+                    ) {
+
+                        "COMPRA" ->
+                            primary.ema9 >
+                                primary.ema21 &&
+                                primary.macd >
+                                primary.macdSignal
+
+                        "VENDA" ->
+                            primary.ema9 <
+                                primary.ema21 &&
+                                primary.macd <
+                                primary.macdSignal
+
+                        else ->
+                            false
+                    }
+
+                val invalidated =
+                    realtime.fsi >=
+                        70.0 ||
+                        realtime.market.dataQuality !=
+                        "GOOD"
+
+                val sequenceInput =
+                    SequenceInput(
+                        signalDetected =
+                            signalDetected,
+
+                        confirmation =
+                            confirmation,
+
+                        continuation =
+                            continuation,
+
+                        invalidated =
+                            invalidated
+                    )
+
+                val sequence =
+                    SequenceEngine.advance(
+                        sequenceStage,
+                        sequenceInput
+                    )
+
+                sequenceStage =
+                    sequence.stage
+
+                val falseSignalInput =
+                    FalseSignalInput(
+                        structureContradiction =
+                            abs(
+                                primary.structure -
+                                    realtime.mtfConfluence
+                            ),
+
+                        momentumDivergence =
+                            abs(
+                                primary.momentum -
+                                    primary.rsi
+                            ),
+
+                        volumeMismatch =
+                            abs(
+                                primary.volume -
+                                    primary.momentum
+                            ),
+
+                        confirmationFailure =
+                            100.0 -
+                                realtime.mtfConfluence,
+
+                        timeframeConflict =
+                            100.0 -
+                                realtime.mtfConfluence
+                    )
+
                 val finalInput =
                     FinalMotorInput(
                         market =
-                            market,
+                            realtime.market,
+
                         now =
                             now,
 
-                        /*
-                         * A sequência completa será alimentada
-                         * pelo histórico do motor conforme
-                         * avançarmos o estado persistente.
-                         */
                         sequence =
-                            SequenceInput(
-                                signal = 0,
-                                confirmation = 0,
-                                invalidation = 0
-                            ),
+                            sequenceInput,
 
                         sequenceStage =
-                            SequenceStage.S0,
+                            sequence.stage,
 
                         falseSignal =
-                            FalseSignalInput(
-                                structureContradiction = 0.0,
-                                momentumDivergence = 0.0,
-                                volumeMismatch = 0.0,
-                                confirmationFailure = 0.0,
-                                timeframeConflict = 0.0
-                            )
+                            falseSignalInput
                     )
 
-                val result =
+                val finalResult =
                     FinalMotorEngine.evaluate(
                         finalInput
                     )
@@ -367,8 +451,8 @@ class MainActivity : AppCompatActivity() {
 
                     analysisView.text =
                         buildAnalysisText(
-                            market,
-                            result,
+                            realtime,
+                            finalResult,
                             candles
                         )
                 }
@@ -395,8 +479,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun buildAnalysisText(
-        market: MarketData,
-        result: FinalMotorResult,
+        realtime:
+            RealtimeAnalysis,
+
+        result:
+            FinalMotorResult,
+
         candles:
             Map<String, List<MarketCandle>>
     ): String {
@@ -405,65 +493,31 @@ class MainActivity : AppCompatActivity() {
             StringBuilder()
 
         output.append(
-            "FONTE: ${market.source}\n"
+            "FONTE: TWELVE DATA\n"
         )
 
         output.append(
-            "QUALIDADE: ${market.dataQuality}\n\n"
-        )
-
-        output.append(
-            "ESTRUTURA: ${
-                "%.1f".format(
-                    market.structure
-                )
-            }\n"
-        )
-
-        output.append(
-            "TENDÊNCIA: ${
-                "%.1f".format(
-                    market.trend
-                )
-            }\n"
-        )
-
-        output.append(
-            "MOMENTUM: ${
-                "%.1f".format(
-                    market.momentum
-                )
-            }\n"
-        )
-
-        output.append(
-            "VOLUME: ${
-                "%.1f".format(
-                    market.volume
-                )
-            }\n"
-        )
-
-        output.append(
-            "VOLATILIDADE: ${
-                "%.1f".format(
-                    market.volatility
-                )
-            }\n"
-        )
-
-        output.append(
-            "MTF: ${
-                "%.1f".format(
-                    market.multiTimeframe
-                )
+            "QUALIDADE: ${
+                realtime.market.dataQuality
             }\n\n"
         )
 
         output.append(
-            "SCORE: ${
+            "REGIME: ${
+                realtime.regime
+            }\n"
+        )
+
+        output.append(
+            "DIREÇÃO: ${
+                realtime.direction
+            }\n\n"
+        )
+
+        output.append(
+            "SCORE QUANTITATIVO: ${
                 "%.1f".format(
-                    result.score.score
+                    realtime.score
                 )
             }\n"
         )
@@ -471,23 +525,33 @@ class MainActivity : AppCompatActivity() {
         output.append(
             "FSI: ${
                 "%.1f".format(
-                    result.fsi.value
+                    realtime.fsi
                 )
-            } — ${
-                result.fsi.level
             }\n"
         )
 
         output.append(
             "FALSO SINAL: ${
-                if (
-                    result.falseSignal.blocked
-                ) {
-                    "BLOQUEADO"
-                } else {
-                    "OK"
-                }
+                "%.1f".format(
+                    realtime.falseSignal
+                )
             }\n"
+        )
+
+        output.append(
+            "CONFLUÊNCIA MTF: ${
+                "%.1f".format(
+                    realtime.mtfConfluence
+                )
+            }\n"
+        )
+
+        output.append(
+            "CONFIANÇA DO MODELO: ${
+                "%.1f".format(
+                    realtime.confidence
+                )
+            }\n\n"
         )
 
         output.append(
@@ -497,7 +561,19 @@ class MainActivity : AppCompatActivity() {
         )
 
         output.append(
-            "DECISÃO: ${
+            "SEQUÊNCIA CONFIRMADA: ${
+                if (
+                    result.sequence.confirmed
+                ) {
+                    "SIM"
+                } else {
+                    "NÃO"
+                }
+            }\n"
+        )
+
+        output.append(
+            "DECISÃO FINAL: ${
                 result.decision.decision
             }\n"
         )
@@ -508,8 +584,98 @@ class MainActivity : AppCompatActivity() {
             }\n\n"
         )
 
+        val m15 =
+            realtime.metrics["M15"]
+
+        if (m15 != null) {
+
+            output.append(
+                "M15\n"
+            )
+
+            output.append(
+                "EMA 9: ${
+                    "%.5f".format(
+                        m15.ema9
+                    )
+                }\n"
+            )
+
+            output.append(
+                "EMA 21: ${
+                    "%.5f".format(
+                        m15.ema21
+                    )
+                }\n"
+            )
+
+            output.append(
+                "EMA 50: ${
+                    "%.5f".format(
+                        m15.ema50
+                    )
+                }\n"
+            )
+
+            output.append(
+                "RSI: ${
+                    "%.1f".format(
+                        m15.rsi
+                    )
+                }\n"
+            )
+
+            output.append(
+                "MACD: ${
+                    "%.5f".format(
+                        m15.macd
+                    )
+                }\n"
+            )
+
+            output.append(
+                "MACD SIGNAL: ${
+                    "%.5f".format(
+                        m15.macdSignal
+                    )
+                }\n"
+            )
+
+            output.append(
+                "ADX: ${
+                    "%.1f".format(
+                        m15.adx
+                    )
+                }\n"
+            )
+
+            output.append(
+                "ATR: ${
+                    "%.5f".format(
+                        m15.atr
+                    )
+                }\n"
+            )
+
+            output.append(
+                "SUPORTE: ${
+                    "%.5f".format(
+                        m15.support
+                    )
+                }\n"
+            )
+
+            output.append(
+                "RESISTÊNCIA: ${
+                    "%.5f".format(
+                        m15.resistance
+                    )
+                }\n"
+            )
+        }
+
         output.append(
-            "TIMEFRAMES\n"
+            "\nTIMEFRAMES\n"
         )
 
         for (
@@ -525,7 +691,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         output.append(
-            "\nATUALIZAÇÃO CONTÍNUA: ATIVA"
+            "\nATUALIZAÇÃO: CONTÍNUA"
+        )
+
+        output.append(
+            "\nEXECUÇÃO DE ORDENS: DESATIVADA"
         )
 
         return output.toString()
