@@ -1,6 +1,7 @@
 from dataclasses import dataclass
+from typing import Optional
 
-from mt5_gateway import MT5Gateway
+from mt5_gateway import MT5Gateway, MarketBar
 
 
 @dataclass
@@ -14,23 +15,51 @@ class MarketSnapshot:
     data_quality: str
 
 
+@dataclass
+class MultiTimeframeSnapshot:
+    asset: str
+    timestamp: int
+    tick: MarketSnapshot
+    bars: dict[str, list[MarketBar]]
+
+
 class MarketBridge:
 
-    def __init__(self, symbol: str):
-
-        self.gateway = MT5Gateway(symbol)
+    def __init__(self):
+        self.gateway = MT5Gateway()
 
     def connect(self) -> bool:
-
         return self.gateway.connect()
 
     def disconnect(self):
-
         self.gateway.disconnect()
 
-    def snapshot(self) -> MarketSnapshot:
+    def list_assets(
+        self,
+        group: Optional[str] = None
+    ) -> list[str]:
 
-        tick = self.gateway.get_tick()
+        return self.gateway.list_symbols(
+            group=group
+        )
+
+    def select_asset(
+        self,
+        symbol: str
+    ) -> bool:
+
+        return self.gateway.select_symbol(
+            symbol
+        )
+
+    def snapshot(
+        self,
+        symbol: Optional[str] = None
+    ) -> MarketSnapshot:
+
+        tick = self.gateway.get_tick(
+            symbol
+        )
 
         price = (
             tick.bid + tick.ask
@@ -38,7 +67,11 @@ class MarketBridge:
 
         quality = "GOOD"
 
-        if tick.bid <= 0 or tick.ask <= 0:
+        if (
+            tick.bid <= 0.0 or
+            tick.ask <= 0.0 or
+            tick.ask < tick.bid
+        ):
             quality = "BAD"
 
         return MarketSnapshot(
@@ -49,4 +82,37 @@ class MarketBridge:
             ask=tick.ask,
             spread=tick.spread,
             data_quality=quality
+        )
+
+    def multi_timeframe_snapshot(
+        self,
+        symbol: Optional[str] = None,
+        timeframes: Optional[list[str]] = None,
+        count: int = 200
+    ) -> MultiTimeframeSnapshot:
+
+        tick = self.snapshot(
+            symbol
+        )
+
+        bars = self.gateway.get_multi_timeframe(
+            symbol=tick.asset,
+            timeframes=timeframes,
+            count=count
+        )
+
+        return MultiTimeframeSnapshot(
+            asset=tick.asset,
+            timestamp=tick.timestamp,
+            tick=tick,
+            bars=bars
+        )
+
+    def symbol_info(
+        self,
+        symbol: Optional[str] = None
+    ):
+
+        return self.gateway.get_symbol_info(
+            symbol
         )
