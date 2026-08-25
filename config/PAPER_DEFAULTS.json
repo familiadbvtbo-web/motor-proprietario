@@ -1,0 +1,7 @@
+{
+  "mode": "PAPER",
+  "real_execution": false,
+  "fees_enabled": true,
+  "slippage_enabled": true,
+  "audit_enabled": true
+}
