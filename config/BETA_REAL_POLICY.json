@@ -1,0 +1,7 @@
+{
+  "mode": "BETA_REAL_DATA",
+  "paper_trading": true,
+  "real_execution": false,
+  "require_good_data_for_decision": true,
+  "audit": true
+}
