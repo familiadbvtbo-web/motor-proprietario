@@ -1259,21 +1259,116 @@ object RealtimeMarketAnalyzer {
                     "LATERAL / INDEFINIDO"
             }
 
-        val decision =
-    when {
+                val decision =
+            when {
 
-        direction == "COMPRA" &&
-            score >= 70.0 &&
-            fsi < 35.0 &&
-            mtfConfluence >= 60.0 ->
-            "COMPRA"
+                direction == "COMPRA" &&
+                    score >= 70.0 &&
+                    fsi < 35.0 &&
+                    mtfConfluence >= 60.0 ->
+                    "COMPRA"
 
-        direction == "VENDA" &&
-            score <= 30.0 &&
-            fsi < 35.0 &&
-            mtfConfluence >= 60.0 ->
-            "VENDA"
+                direction == "VENDA" &&
+                    score <= 30.0 &&
+                    fsi < 35.0 &&
+                    mtfConfluence >= 60.0 ->
+                    "VENDA"
 
-        else ->
-            "AGUARDAR"
+                else ->
+                    "AGUARDAR"
+            }
+
+        val confidence =
+            clamp(
+                abs(
+                    score -
+                        50.0
+                ) * 1.4 +
+                    mtfConfluence * 0.35 -
+                    fsi * 0.40
+            )
+
+        /*
+         * O timestamp pode vir da Twelve Data
+         * em segundos ou milissegundos.
+         * Aqui usamos o timestamp normalizado.
+         */
+        val marketDataQuality =
+            if (
+                price > 0.0 &&
+                    normalizedTimestamp > 0L &&
+                    now >= normalizedTimestamp &&
+                    now - normalizedTimestamp <= 120_000L
+            ) {
+                "GOOD"
+            } else {
+                "BAD"
+            }
+
+        val market =
+            MarketData(
+                asset = symbol,
+                timestamp = normalizedTimestamp,
+                price = price,
+                structure =
+                    primary.structure,
+                trend =
+                    primary.trend,
+                momentum =
+                    primary.momentum,
+                volume =
+                    primary.volume,
+                volatility =
+                    primary.volatility,
+                fsi =
+                    fsi,
+                multiTimeframe =
+                    mtfConfluence,
+                dataQuality =
+                    marketDataQuality,
+                bid =
+                    bid,
+                ask =
+                    ask,
+                spread =
+                    max(
+                        0.0,
+                        ask - bid
+                    ),
+                source =
+                    "TWELVE_DATA"
+            )
+
+        return RealtimeAnalysis(
+            market =
+                market,
+
+            metrics =
+                metrics,
+
+            score =
+                score,
+
+            fsi =
+                fsi,
+
+            falseSignal =
+                falseSignal,
+
+            mtfConfluence =
+                mtfConfluence,
+
+            regime =
+                regime,
+
+            direction =
+                direction,
+
+            decision =
+                decision,
+
+            confidence =
+                confidence
+        )
     }
+}
