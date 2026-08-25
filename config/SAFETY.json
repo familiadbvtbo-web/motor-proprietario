@@ -1,0 +1,6 @@
+{
+  "paper_trading": true,
+  "real_execution": false,
+  "private_keys_in_apk": false,
+  "require_data_quality": true
+}
