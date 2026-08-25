@@ -9,7 +9,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
-import kotlin.math.abs
+import kotlin.math.round
 
 class MainActivity : AppCompatActivity() {
 
@@ -29,6 +29,7 @@ class MainActivity : AppCompatActivity() {
     )
 
     private lateinit var statusView: TextView
+    private lateinit var indicatorsView: TextView
     private lateinit var decisionView: TextView
     private lateinit var updateView: TextView
 
@@ -59,46 +60,96 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun metric(name: String, value: Double): TextView {
-        return text(
-            "$name    ${"%.1f".format(value)}",
-            17f,
-            true
-        ).apply {
-            setPadding(
-                dp(16),
-                dp(12),
-                dp(16),
-                dp(12)
-            )
-        }
+    private fun fmt(value: Double): String {
+        return "%.1f".format(value)
     }
 
-    private fun calculateDisplayScore(): Double {
+    private fun buildMarketData(now: Long): MarketData {
+
         /*
-         * Nesta etapa NÃO existe fórmula proprietária de Score.
-         * Portanto não fabricamos um Score a partir dos indicadores.
+         * Nesta etapa os dados abaixo são SIMULADOS.
+         *
+         * Nenhum dado de corretora ou mercado real está sendo
+         * fingido como se fosse real.
+         *
+         * Quando o adaptador de mercado for integrado,
+         * esta função será substituída pela fonte real.
          */
-        return 0.0
+        return MarketData(
+            asset = "SIMULADO",
+            timestamp = now,
+            price = 100.0,
+            structure = 0.0,
+            trend = 0.0,
+            momentum = 0.0,
+            volume = 0.0,
+            volatility = 0.0,
+            fsi = 0.0,
+            multiTimeframe = 0.0,
+            dataQuality = state.dataQuality
+        )
+    }
+
+    private fun evaluateMotor(): FinalMotorResult {
+
+        val now = System.currentTimeMillis()
+
+        val market = buildMarketData(now)
+
+        return FinalMotorEngine.evaluate(
+            FinalMotorInput(
+                market = market,
+                now = now,
+
+                sequence = SequenceInput(
+                    signalDetected = false,
+                    confirmation = false,
+                    continuation = false,
+                    invalidated = false
+                ),
+
+                sequenceStage = SequenceStage.S0,
+
+                falseSignal = FalseSignalInput(
+                    structureContradiction = 0.0,
+                    momentumDivergence = 0.0,
+                    volumeMismatch = 0.0,
+                    confirmationFailure = 0.0,
+                    timeframeConflict = 0.0
+                )
+            )
+        )
     }
 
     private fun refreshState() {
 
+        val now = System.currentTimeMillis()
+
         state = state.copy(
-            lastUpdate = System.currentTimeMillis()
+            lastUpdate = now
         )
 
-        val connectedText =
-            if (state.connected) "ONLINE" else "OFFLINE"
+        val result = evaluateMotor()
 
-        val qualityText = state.dataQuality
+        val connectedText =
+            if (state.connected) {
+                "ONLINE"
+            } else {
+                "OFFLINE"
+            }
 
         statusView.text =
             "CONEXÃO       $connectedText\n" +
-            "DADOS         $qualityText\n" +
+            "DADOS         ${state.dataQuality}\n" +
             "PAPER         ${if (state.paperMode) "ATIVO" else "INATIVO"}"
 
-        val currentScore = calculateDisplayScore()
+        indicatorsView.text =
+            "SCORE              ${fmt(result.score.score)}\n\n" +
+            "FSI                  ${fmt(result.fsi.value)}\n\n" +
+            "FALSO SINAL     ${fmt(result.falseSignal.risk)}\n\n" +
+            "SEQUÊNCIA       ${if (result.sequence.confirmed) "CONFIRMADA" else "NÃO CONFIRMADA"}"
+
+        val currentScore = result.score.score
 
         val alert = shouldAlert(
             previousScore,
@@ -110,15 +161,19 @@ class MainActivity : AppCompatActivity() {
         previousScore = currentScore
 
         decisionView.text =
-            "AGUARDAR\n\n" +
-            "Regime: —\n" +
-            "Score: ${"%.1f".format(currentScore)}\n" +
+            "${result.decision.decision}\n\n" +
+            "Motivo: ${result.decision.reason}\n" +
+            "Score: ${fmt(currentScore)}\n" +
             "Alerta: ${if (alert) "SIM" else "NÃO"}"
 
         updateView.text =
-            "Última atualização: ${state.lastUpdate}\n\n" +
-            "Os indicadores permanecem neutros enquanto " +
-            "a fonte de dados de mercado não estiver conectada."
+            "Última atualização: $now\n\n" +
+            "Ativo: ${result.sequence.confirmed}\n" +
+            "Mercado utilizável: ${if (result.marketUsable) "SIM" else "NÃO"}\n" +
+            "Modo: PAPER TRADING\n" +
+            "Execução real: DESATIVADA\n\n" +
+            "FONTE ATUAL: DADOS SIMULADOS\n" +
+            "Nenhuma ordem real pode ser enviada nesta etapa."
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -126,13 +181,17 @@ class MainActivity : AppCompatActivity() {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
+
             setPadding(
                 dp(24),
                 dp(36),
                 dp(24),
                 dp(24)
             )
-            setBackgroundColor(Color.rgb(18, 15, 22))
+
+            setBackgroundColor(
+                Color.rgb(18, 15, 22)
+            )
         }
 
         val title = text(
@@ -144,7 +203,7 @@ class MainActivity : AppCompatActivity() {
         }
 
         val version = text(
-            "V173.0",
+            "V174.0",
             18f
         ).apply {
             gravity = Gravity.CENTER_HORIZONTAL
@@ -171,10 +230,13 @@ class MainActivity : AppCompatActivity() {
             true
         )
 
-        statusView = text("", 17f)
+        statusView = text(
+            "",
+            17f
+        )
 
         val indicatorsTitle = text(
-            "INDICADORES",
+            "INDICADORES DO MOTOR",
             19f,
             true
         ).apply {
@@ -186,10 +248,10 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        val fsi = metric("FSI", 0.0)
-        val pfs = metric("PFS", 0.0)
-        val mis = metric("MIS", 0.0)
-        val antiTrap = metric("ANTI-TRAP", 0.0)
+        indicatorsView = text(
+            "",
+            17f
+        )
 
         val decisionTitle = text(
             "DECISÃO",
@@ -204,7 +266,10 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        decisionView = text("", 18f)
+        decisionView = text(
+            "",
+            18f
+        )
 
         val updateTitle = text(
             "ESTADO",
@@ -219,12 +284,16 @@ class MainActivity : AppCompatActivity() {
             )
         }
 
-        updateView = text("", 14f).apply {
+        updateView = text(
+            "",
+            14f
+        ).apply {
             setTextColor(Color.LTGRAY)
         }
 
         val refreshButton = Button(this).apply {
-            text = "ATUALIZAR ESTADO"
+            text = "EXECUTAR CICLO DO MOTOR"
+
             setOnClickListener {
                 refreshState()
             }
@@ -233,17 +302,19 @@ class MainActivity : AppCompatActivity() {
         root.addView(title)
         root.addView(version)
         root.addView(mode)
+
         root.addView(statusTitle)
         root.addView(statusView)
+
         root.addView(indicatorsTitle)
-        root.addView(fsi)
-        root.addView(pfs)
-        root.addView(mis)
-        root.addView(antiTrap)
+        root.addView(indicatorsView)
+
         root.addView(decisionTitle)
         root.addView(decisionView)
+
         root.addView(updateTitle)
         root.addView(updateView)
+
         root.addView(refreshButton)
 
         val scroll = ScrollView(this).apply {
