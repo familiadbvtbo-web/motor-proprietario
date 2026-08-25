@@ -1,26 +1,19 @@
-def win_rate(results):
-    if not results:
-        return 0.0
-
-    wins = sum(1 for result in results if result > 0)
-    return wins / len(results)
-
-
 def expectancy(results):
     if not results:
-        return 0.0
+        raise ValueError("results cannot be empty")
+    return sum(results)/len(results)
 
-    return sum(results) / len(results)
+def max_drawdown(equity):
+    if not equity:
+        raise ValueError("equity cannot be empty")
+    peak=equity[0]
+    dd=0.0
+    for x in equity:
+        peak=max(peak,x)
+        dd=max(dd,peak-x)
+    return dd
 
-
-def max_drawdown(results):
-    equity = 0.0
-    peak = 0.0
-    drawdown = 0.0
-
-    for result in results:
-        equity += result
-        peak = max(peak, equity)
-        drawdown = max(drawdown, peak - equity)
-
-    return drawdown
+def win_rate(results):
+    if not results:
+        raise ValueError("results cannot be empty")
+    return sum(1 for x in results if x>0)/len(results)
