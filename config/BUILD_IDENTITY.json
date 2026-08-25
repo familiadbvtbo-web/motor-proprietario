@@ -1,0 +1,7 @@
+{
+  "applicationId": "com.motorproprietario.app",
+  "version": "V170",
+  "minSdk": 26,
+  "targetSdk": 35,
+  "real_execution": false
+}
