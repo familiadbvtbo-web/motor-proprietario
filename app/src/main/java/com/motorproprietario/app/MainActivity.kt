@@ -34,23 +34,47 @@ class MainActivity : AppCompatActivity() {
         RealTimeQuote? = null
 
     private var analyzing = false
-   
+
+    /*
+     * Cache dos candles.
+     *
+     * O preço continua chegando pelo WebSocket
+     * em tempo real.
+     *
+     * Os candles são atualizados somente quando
+     * o respectivo timeframe precisa de atualização.
+     */
     private val candleCache =
-    LinkedHashMap<String, List<MarketCandle>>()
+        LinkedHashMap<String, List<MarketCandle>>()
 
-private val lastCandleUpdate =
-    HashMap<String, Long>()
+    private val lastCandleUpdate =
+        HashMap<String, Long>()
 
-private val candleIntervals =
-    mapOf(
-        "M1" to 60_000L,
-        "M5" to 300_000L,
-        "M15" to 900_000L,
-        "M30" to 1_800_000L,
-        "H1" to 3_600_000L,
-        "H4" to 14_400_000L,
-        "D1" to 86_400_000L
-    )
+    /*
+     * Intervalo mínimo entre atualizações
+     * de cada timeframe.
+     */
+    private val candleIntervals =
+        mapOf(
+            "M1" to 60_000L,
+            "M5" to 300_000L,
+            "M15" to 900_000L,
+            "M30" to 1_800_000L,
+            "H1" to 3_600_000L,
+            "H4" to 14_400_000L,
+            "D1" to 86_400_000L
+        )
+
+    /*
+     * Quando a Twelve Data responder 429,
+     * evitamos novas chamadas durante o período
+     * de proteção.
+     */
+    private var candleApiBackoffUntil =
+        0L
+
+    private val candleApiBackoffMs =
+        65_000L
 
     private var sequenceStage =
         SequenceStage.S0
@@ -293,55 +317,201 @@ private val candleIntervals =
 
             try {
 
-                val timeframes =
-                    listOf(
-                        "M1",
-                        "M5",
-                        "M15",
-                        "M30",
-                        "H1",
-                        "H4",
-                        "D1"
-                    )
+                val now =
+                    System.currentTimeMillis()
 
+                /*
+                 * Se a API acabou de devolver 429,
+                 * não fazemos novas chamadas REST.
+                 *
+                 * O WebSocket continua funcionando.
+                 */
+                val apiBlocked =
+                    now <
+                        candleApiBackoffUntil
+
+                if (!apiBlocked) {
+
+                    val timeframes =
+                        listOf(
+                            "M1",
+                            "M5",
+                            "M15",
+                            "M30",
+                            "H1",
+                            "H4",
+                            "D1"
+                        )
+
+                    for (
+                        timeframe in timeframes
+                    ) {
+
+                        val interval =
+                            candleIntervals[
+                                timeframe
+                            ]
+                                ?: 60_000L
+
+                        val lastUpdate =
+                            lastCandleUpdate[
+                                timeframe
+                            ]
+                                ?: 0L
+
+                        val hasCache =
+                            candleCache[
+                                timeframe
+                            ] != null
+
+                        val shouldUpdate =
+                            !hasCache ||
+                            now - lastUpdate >=
+                            interval
+
+                        if (!shouldUpdate) {
+                            continue
+                        }
+
+                        try {
+
+                            val freshCandles =
+                                candleClient.getCandles(
+                                    symbol =
+                                        selectedAsset,
+
+                                    timeframe =
+                                        timeframe,
+
+                                    outputSize =
+                                        200
+                                )
+
+                            if (
+                                freshCandles.isNotEmpty()
+                            ) {
+
+                                candleCache[
+                                    timeframe
+                                ] =
+                                    freshCandles
+
+                                lastCandleUpdate[
+                                    timeframe
+                                ] =
+                                    now
+                            }
+
+                            /*
+                             * Pequeno espaçamento entre
+                             * chamadas iniciais/atualizações.
+                             *
+                             * Evita uma rajada de requisições.
+                             */
+                            Thread.sleep(700L)
+
+                        } catch (
+                            error: Exception
+                        ) {
+
+                            val message =
+                                error.message
+                                    ?: ""
+
+                            if (
+                                message.contains(
+                                    "429",
+                                    ignoreCase = true
+                                )
+                            ) {
+
+                                candleApiBackoffUntil =
+                                    System.currentTimeMillis() +
+                                        candleApiBackoffMs
+
+                                runOnUiThread {
+
+                                    statusView.text =
+                                        "● ONLINE\n" +
+                                        "FONTE: TWELVE DATA\n" +
+                                        "DADOS: REAIS\n" +
+                                        "WEBSOCKET: ATIVO\n" +
+                                        "CANDLES: ÚLTIMOS DADOS VÁLIDOS\n" +
+                                        "API: LIMITE TEMPORÁRIO"
+                                }
+
+                                /*
+                                 * Não continuamos fazendo
+                                 * requisições REST nesta rodada.
+                                 */
+                                break
+
+                            }
+
+                            /*
+                             * Qualquer erro de candle não
+                             * apaga o cache anterior.
+                             */
+                        }
+                    }
+                }
+
+                /*
+                 * Copia o cache atual para a análise.
+                 */
                 val candles =
                     LinkedHashMap<
                         String,
                         List<MarketCandle>
                     >()
 
-                for (
-                    timeframe in timeframes
+                synchronized(
+                    candleCache
                 ) {
-
-                    candles[timeframe] =
-                        candleClient.getCandles(
-                            symbol =
-                                selectedAsset,
-                            timeframe =
-                                timeframe,
-                            outputSize =
-                                200
-                        )
+                    candles.putAll(
+                        candleCache
+                    )
                 }
 
-                val now =
-                    System.currentTimeMillis()
+                /*
+                 * Sem candles ainda:
+                 * aguarda a primeira carga.
+                 */
+                if (candles.isEmpty()) {
 
+                    runOnUiThread {
+
+                        analysisView.text =
+                            "AGUARDANDO CANDLES REAIS..."
+                    }
+
+                    return@thread
+                }
+
+                /*
+                 * O motor continua usando o preço
+                 * recebido pelo WebSocket.
+                 */
                 val realtime =
                     RealtimeMarketAnalyzer.analyze(
                         symbol =
                             selectedAsset,
+
                         candlesByTimeframe =
                             candles,
+
                         price =
                             quote.price,
+
                         bid =
                             quote.price,
+
                         ask =
                             quote.price,
+
                         timestamp =
                             quote.timestamp,
+
                         now =
                             now
                     )
@@ -351,17 +521,23 @@ private val candleIntervals =
                         ?: realtime.metrics.values.first()
 
                 /*
-                 * O sinal precisa ser confirmado
-                 * pelos indicadores quantitativos.
+                 * Sinal inicial.
                  */
                 val signalDetected =
                     realtime.direction !=
                         "NEUTRO"
 
+                /*
+                 * Confirmação por confluência MTF.
+                 */
                 val confirmation =
                     realtime.mtfConfluence >=
                         60.0
 
+                /*
+                 * Continuação confirmada
+                 * pelos indicadores.
+                 */
                 val continuation =
                     when (
                         realtime.direction
@@ -370,19 +546,23 @@ private val candleIntervals =
                         "COMPRA" ->
                             primary.ema9 >
                                 primary.ema21 &&
-                                primary.macd >
+                            primary.macd >
                                 primary.macdSignal
 
                         "VENDA" ->
                             primary.ema9 <
                                 primary.ema21 &&
-                                primary.macd <
+                            primary.macd <
                                 primary.macdSignal
 
                         else ->
                             false
                     }
 
+                /*
+                 * Invalidação por FSI ou
+                 * qualidade ruim dos dados.
+                 */
                 val invalidated =
                     realtime.fsi >=
                         70.0 ||
@@ -413,6 +593,9 @@ private val candleIntervals =
                 sequenceStage =
                     sequence.stage
 
+                /*
+                 * Falso sinal / FSI.
+                 */
                 val falseSignalInput =
                     FalseSignalInput(
                         structureContradiction =
@@ -467,6 +650,33 @@ private val candleIntervals =
 
                 runOnUiThread {
 
+                    /*
+                     * O WebSocket continua sendo a
+                     * fonte do preço em tempo real.
+                     */
+                    statusView.text =
+                        if (
+                            System.currentTimeMillis() <
+                                candleApiBackoffUntil
+                        ) {
+
+                            "● ONLINE\n" +
+                            "FONTE: TWELVE DATA\n" +
+                            "DADOS: REAIS\n" +
+                            "WEBSOCKET: ATIVO\n" +
+                            "CANDLES: CACHE\n" +
+                            "EXECUÇÃO: DESATIVADA"
+
+                        } else {
+
+                            "● ONLINE\n" +
+                            "FONTE: TWELVE DATA\n" +
+                            "DADOS: REAIS\n" +
+                            "WEBSOCKET: ATIVO\n" +
+                            "CANDLES: ATUALIZADOS\n" +
+                            "EXECUÇÃO: DESATIVADA"
+                        }
+
                     analysisView.text =
                         buildAnalysisText(
                             realtime,
@@ -481,6 +691,10 @@ private val candleIntervals =
 
                 runOnUiThread {
 
+                    /*
+                     * Um erro pontual não apaga
+                     * o preço real recebido.
+                     */
                     analysisView.text =
                         "ERRO NA ANÁLISE\n\n" +
                         (
@@ -710,6 +924,10 @@ private val candleIntervals =
 
         output.append(
             "\nATUALIZAÇÃO: CONTÍNUA"
+        )
+
+        output.append(
+            "\nPREÇO: WEBSOCKET EM TEMPO REAL"
         )
 
         output.append(
