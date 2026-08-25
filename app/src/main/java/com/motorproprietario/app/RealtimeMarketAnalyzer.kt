@@ -56,13 +56,40 @@ object RealtimeMarketAnalyzer {
         )
     }
 
+    /*
+     * Normaliza timestamps recebidos pela API.
+     *
+     * Alguns provedores retornam Unix timestamp
+     * em segundos, enquanto Android usa
+     * System.currentTimeMillis() em milissegundos.
+     */
+    private fun normalizeTimestamp(
+        timestamp: Long
+    ): Long {
+
+        if (timestamp <= 0L) {
+            return 0L
+        }
+
+        return if (
+            timestamp < 10_000_000_000L
+        ) {
+            timestamp * 1000L
+        } else {
+            timestamp
+        }
+    }
+
     private fun mean(
         values: List<Double>
     ): Double {
         return if (
             values.isEmpty()
-        ) 0.0
-        else values.average()
+        ) {
+            0.0
+        } else {
+            values.average()
+        }
     }
 
     private fun std(
@@ -405,14 +432,22 @@ object RealtimeMarketAnalyzer {
                 if (
                     up > down &&
                     up > 0
-                ) up else 0.0
+                ) {
+                    up
+                } else {
+                    0.0
+                }
             )
 
             minusDm.add(
                 if (
                     down > up &&
                     down > 0
-                ) down else 0.0
+                ) {
+                    down
+                } else {
+                    0.0
+                }
             )
 
             trs.add(
@@ -446,12 +481,16 @@ object RealtimeMarketAnalyzer {
         val plus =
             mean(
                 plusDm.takeLast(period)
-            ) / tr * 100.0
+            ) /
+                tr *
+                100.0
 
         val minus =
             mean(
                 minusDm.takeLast(period)
-            ) / tr * 100.0
+            ) /
+                tr *
+                100.0
 
         if (
             plus + minus <= 0.0
@@ -635,9 +674,6 @@ object RealtimeMarketAnalyzer {
             return 50.0
         }
 
-        val a =
-            candles[candles.size - 3]
-
         val b =
             candles[candles.size - 2]
 
@@ -726,7 +762,8 @@ object RealtimeMarketAnalyzer {
         }
 
         val previous =
-            candles.dropLast(1)
+            candles
+                .dropLast(1)
                 .takeLast(20)
 
         val current =
@@ -961,6 +998,9 @@ object RealtimeMarketAnalyzer {
         now: Long
     ): RealtimeAnalysis {
 
+        val normalizedTimestamp =
+            normalizeTimestamp(timestamp)
+
         val metrics =
             candlesByTimeframe
                 .filter {
@@ -992,7 +1032,6 @@ object RealtimeMarketAnalyzer {
 
         var bullish = 0.0
         var bearish = 0.0
-
         var totalWeight = 0.0
 
         for (
@@ -1019,6 +1058,7 @@ object RealtimeMarketAnalyzer {
             if (
                 local >= 55.0
             ) {
+
                 bullish +=
                     weight *
                         (
@@ -1030,6 +1070,7 @@ object RealtimeMarketAnalyzer {
             if (
                 local <= 45.0
             ) {
+
                 bearish +=
                     weight *
                         (
@@ -1119,12 +1160,6 @@ object RealtimeMarketAnalyzer {
             ).count {
                 it
             }
-
-        val conflict =
-            abs(
-                mtfBull -
-                    mtfBear
-            )
 
         val falseSignal =
             clamp(
@@ -1233,84 +1268,4 @@ object RealtimeMarketAnalyzer {
                     mtfConfluence >= 60.0 ->
                     "COMPRA"
 
-                direction == "VENDA" &&
-                    score <= 30.0 &&
-                    fsi < 35.0 &&
-                    mtfConfluence >= 60.0 ->
-                    "VENDA"
-
-                else ->
-                    "AGUARDAR"
-            }
-
-        val confidence =
-            clamp(
-                (
-                    abs(
-                        score -
-                            50.0
-                    ) *
-                        1.4 +
-                    mtfConfluence *
-                        0.35 -
-                    fsi *
-                        0.40
-                )
-            )
-
-        val market =
-            MarketData(
-                asset = symbol,
-                timestamp = timestamp,
-                price = price,
-                structure =
-                    primary.structure,
-                trend =
-                    primary.trend,
-                momentum =
-                    primary.momentum,
-                volume =
-                    primary.volume,
-                volatility =
-                    primary.volatility,
-                fsi = fsi,
-                multiTimeframe =
-                    mtfConfluence,
-                dataQuality =
-                    if (
-                        price > 0.0 &&
-                        timestamp > 0L &&
-                        now >= timestamp &&
-                        now - timestamp <=
-                            120_000L
-                    ) {
-                        "GOOD"
-                    } else {
-                        "BAD"
-                    },
-                bid = bid,
-                ask = ask,
-                spread =
-                    max(
-                        0.0,
-                        ask - bid
-                    ),
-                source =
-                    "TWELVE_DATA"
-            )
-
-        return RealtimeAnalysis(
-            market = market,
-            metrics = metrics,
-            score = score,
-            fsi = fsi,
-            falseSignal = falseSignal,
-            mtfConfluence =
-                mtfConfluence,
-            regime = regime,
-            direction = direction,
-            decision = decision,
-            confidence = confidence
-        )
-    }
-}
+                direction ==
