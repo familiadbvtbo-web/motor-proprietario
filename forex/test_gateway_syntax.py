@@ -25,13 +25,9 @@ def main():
             doraise=True
         )
 
-        print(
-            f"OK: {file_path.name}"
-        )
+        print(f"OK: {file_path.name}")
 
-    print(
-        "FOREX PYTHON SYNTAX: OK"
-    )
+    print("FOREX PYTHON SYNTAX: OK")
 
 
 if __name__ == "__main__":
