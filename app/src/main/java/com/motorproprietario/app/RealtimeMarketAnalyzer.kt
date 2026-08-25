@@ -50,19 +50,31 @@ object RealtimeMarketAnalyzer {
         minValue: Double = 0.0,
         maxValue: Double = 100.0
     ): Double {
+
+        if (!value.isFinite()) {
+            return minValue
+        }
+
         return value.coerceIn(
             minValue,
             maxValue
         )
     }
 
-    /*
-     * Normaliza timestamps recebidos pela API.
-     *
-     * Alguns provedores retornam Unix timestamp
-     * em segundos, enquanto Android usa
-     * System.currentTimeMillis() em milissegundos.
-     */
+    private fun safe(
+        value: Double,
+        fallback: Double = 0.0
+    ): Double {
+
+        return if (
+            value.isFinite()
+        ) {
+            value
+        } else {
+            fallback
+        }
+    }
+
     private fun normalizeTimestamp(
         timestamp: Long
     ): Long {
@@ -83,12 +95,18 @@ object RealtimeMarketAnalyzer {
     private fun mean(
         values: List<Double>
     ): Double {
+
+        val valid =
+            values.filter {
+                it.isFinite()
+            }
+
         return if (
-            values.isEmpty()
+            valid.isEmpty()
         ) {
             0.0
         } else {
-            values.average()
+            valid.average()
         }
     }
 
@@ -96,15 +114,20 @@ object RealtimeMarketAnalyzer {
         values: List<Double>
     ): Double {
 
-        if (values.isEmpty()) {
+        val valid =
+            values.filter {
+                it.isFinite()
+            }
+
+        if (valid.isEmpty()) {
             return 0.0
         }
 
         val avg =
-            values.average()
+            valid.average()
 
         return sqrt(
-            values.map {
+            valid.map {
                 (it - avg).pow(2)
             }.average()
         )
@@ -115,12 +138,17 @@ object RealtimeMarketAnalyzer {
         period: Int
     ): Double {
 
-        if (values.isEmpty()) {
+        val valid =
+            values.filter {
+                it.isFinite()
+            }
+
+        if (valid.isEmpty()) {
             return 0.0
         }
 
-        if (values.size < period) {
-            return values.last()
+        if (valid.size < period) {
+            return valid.last()
         }
 
         val multiplier =
@@ -128,24 +156,24 @@ object RealtimeMarketAnalyzer {
                 (period + 1)
 
         var result =
-            values
+            valid
                 .take(period)
                 .average()
 
         for (
-            i in period until values.size
+            i in period until valid.size
         ) {
 
             result =
                 (
-                    values[i] -
+                    valid[i] -
                         result
                 ) *
                     multiplier +
                     result
         }
 
-        return result
+        return safe(result)
     }
 
     private fun rsi(
@@ -170,7 +198,7 @@ object RealtimeMarketAnalyzer {
                 values[i] -
                     values[i - 1]
 
-            if (change >= 0) {
+            if (change >= 0.0) {
                 gains += change
             } else {
                 losses += abs(change)
@@ -208,28 +236,42 @@ object RealtimeMarketAnalyzer {
                     avgGain *
                         (period - 1) +
                         gain
-                ) / period
+                ) /
+                    period
 
             avgLoss =
                 (
                     avgLoss *
                         (period - 1) +
                         loss
-                ) / period
+                ) /
+                    period
         }
 
-        if (avgLoss == 0.0) {
-            return 100.0
+        if (
+            avgLoss <= 0.0
+        ) {
+
+            return if (
+                avgGain > 0.0
+            ) {
+                100.0
+            } else {
+                50.0
+            }
         }
 
         val rs =
-            avgGain / avgLoss
+            avgGain /
+                avgLoss
 
-        return 100.0 -
-            (
-                100.0 /
-                    (1.0 + rs)
-            )
+        return clamp(
+            100.0 -
+                (
+                    100.0 /
+                        (1.0 + rs)
+                )
+        )
     }
 
     private fun trueRanges(
@@ -272,7 +314,12 @@ object RealtimeMarketAnalyzer {
                     )
                 )
 
-            result.add(tr)
+            if (
+                tr.isFinite() &&
+                tr >= 0.0
+            ) {
+                result.add(tr)
+            }
         }
 
         return result
@@ -286,7 +333,9 @@ object RealtimeMarketAnalyzer {
         val tr =
             trueRanges(candles)
 
-        if (tr.isEmpty()) {
+        if (
+            tr.isEmpty()
+        ) {
             return 0.0
         }
 
@@ -323,16 +372,27 @@ object RealtimeMarketAnalyzer {
                     i + 1
                 )
 
-            macdValues.add(
+            val fast =
                 ema(
                     subset,
                     12
-                ) -
-                    ema(
-                        subset,
-                        26
-                    )
+                )
+
+            val slow =
+                ema(
+                    subset,
+                    26
+                )
+
+            macdValues.add(
+                fast - slow
             )
+        }
+
+        if (
+            macdValues.isEmpty()
+        ) {
+            return 0.0 to 0.0
         }
 
         val current =
@@ -344,7 +404,8 @@ object RealtimeMarketAnalyzer {
                 9
             )
 
-        return current to signal
+        return safe(current) to
+            safe(signal)
     }
 
     private fun bollinger(
@@ -431,7 +492,7 @@ object RealtimeMarketAnalyzer {
             plusDm.add(
                 if (
                     up > down &&
-                    up > 0
+                    up > 0.0
                 ) {
                     up
                 } else {
@@ -442,7 +503,7 @@ object RealtimeMarketAnalyzer {
             minusDm.add(
                 if (
                     down > up &&
-                    down > 0
+                    down > 0.0
                 ) {
                     down
                 } else {
@@ -450,7 +511,7 @@ object RealtimeMarketAnalyzer {
                 }
             )
 
-            trs.add(
+            val tr =
                 max(
                     current.high -
                         current.low,
@@ -466,7 +527,18 @@ object RealtimeMarketAnalyzer {
                         )
                     )
                 )
-            )
+
+            if (
+                tr.isFinite()
+            ) {
+                trs.add(tr)
+            }
+        }
+
+        if (
+            trs.isEmpty()
+        ) {
+            return 0.0
         }
 
         val tr =
@@ -474,7 +546,9 @@ object RealtimeMarketAnalyzer {
                 trs.takeLast(period)
             )
 
-        if (tr <= 0.0) {
+        if (
+            tr <= 0.0
+        ) {
             return 0.0
         }
 
@@ -502,7 +576,9 @@ object RealtimeMarketAnalyzer {
             abs(
                 plus - minus
             ) /
-                (plus + minus) *
+                (
+                    plus + minus
+                ) *
                 100.0
         )
     }
@@ -536,7 +612,9 @@ object RealtimeMarketAnalyzer {
         val range =
             high - low
 
-        if (range <= 0.0) {
+        if (
+            range <= 0.0
+        ) {
             return 50.0
         }
 
@@ -593,7 +671,7 @@ object RealtimeMarketAnalyzer {
                         baseline -
                         1.0
                 ) *
-                50.0
+                    50.0
         )
     }
 
@@ -619,22 +697,36 @@ object RealtimeMarketAnalyzer {
             i in 1 until closes.size
         ) {
 
+            val previous =
+                closes[i - 1]
+
             if (
-                closes[i - 1] == 0.0
+                previous == 0.0
             ) {
                 continue
             }
 
-            returns.add(
+            val change =
                 abs(
                     (
                         closes[i] -
-                            closes[i - 1]
+                            previous
                     ) /
-                        closes[i - 1]
+                        previous
                 ) *
                     100.0
-            )
+
+            if (
+                change.isFinite()
+            ) {
+                returns.add(change)
+            }
+        }
+
+        if (
+            returns.isEmpty()
+        ) {
+            return 50.0
         }
 
         val current =
@@ -660,7 +752,7 @@ object RealtimeMarketAnalyzer {
                         baseline -
                         1.0
                 ) *
-                50.0
+                    50.0
         )
     }
 
@@ -675,7 +767,9 @@ object RealtimeMarketAnalyzer {
         }
 
         val b =
-            candles[candles.size - 2]
+            candles[
+                candles.size - 2
+            ]
 
         val c =
             candles.last()
@@ -735,6 +829,13 @@ object RealtimeMarketAnalyzer {
         }
 
         if (
+            body <= range * 0.10
+        ) {
+
+            return 50.0
+        }
+
+        if (
             lowerWick >
                 body * 2.0
         ) {
@@ -746,6 +847,20 @@ object RealtimeMarketAnalyzer {
                 body * 2.0
         ) {
             return 30.0
+        }
+
+        if (
+            c.close >
+                c.open
+        ) {
+            return 60.0
+        }
+
+        if (
+            c.close <
+                c.open
+        ) {
+            return 40.0
         }
 
         return 50.0
@@ -765,6 +880,12 @@ object RealtimeMarketAnalyzer {
             candles
                 .dropLast(1)
                 .takeLast(20)
+
+        if (
+            previous.isEmpty()
+        ) {
+            return 50.0
+        }
 
         val current =
             candles.last()
@@ -815,6 +936,12 @@ object RealtimeMarketAnalyzer {
         val earlier =
             closes.dropLast(10)
 
+        if (
+            earlier.size <= 14
+        ) {
+            return 50.0
+        }
+
         val rsiEarlier =
             rsi(earlier)
 
@@ -827,20 +954,104 @@ object RealtimeMarketAnalyzer {
                 rsiEarlier
 
         if (
-            priceChange > 0 &&
-            rsiChange < 0
+            priceChange > 0.0 &&
+            rsiChange < 0.0
         ) {
             return 25.0
         }
 
         if (
-            priceChange < 0 &&
-            rsiChange > 0
+            priceChange < 0.0 &&
+            rsiChange > 0.0
         ) {
             return 75.0
         }
 
         return 50.0
+    }
+
+    /*
+     * Fibonacci interno.
+     *
+     * Resultado:
+     *
+     * 0   = resistência de baixa
+     * 100 = suporte de alta
+     *
+     * A posição do preço dentro da faixa de Fibonacci
+     * é usada como uma confirmação adicional.
+     */
+    private fun fibonacciScore(
+        candles: List<MarketCandle>
+    ): Double {
+
+        if (
+            candles.size < 30
+        ) {
+            return 50.0
+        }
+
+        val window =
+            candles.takeLast(50)
+
+        val high =
+            window.maxOf {
+                it.high
+            }
+
+        val low =
+            window.minOf {
+                it.low
+            }
+
+        val range =
+            high - low
+
+        if (
+            range <= 0.0
+        ) {
+            return 50.0
+        }
+
+        val price =
+            candles.last().close
+
+        val level =
+            (
+                price - low
+            ) /
+                range *
+                100.0
+
+        /*
+         * Faixas aproximadas de Fibonacci.
+         *
+         * Abaixo de 38.2:
+         * maior assimetria compradora.
+         *
+         * Acima de 61.8:
+         * maior assimetria vendedora.
+         */
+        return when {
+
+            level <= 23.6 ->
+                85.0
+
+            level <= 38.2 ->
+                75.0
+
+            level <= 50.0 ->
+                60.0
+
+            level <= 61.8 ->
+                40.0
+
+            level <= 76.4 ->
+                25.0
+
+            else ->
+                15.0
+        }
     }
 
     private fun metrics(
@@ -857,53 +1068,72 @@ object RealtimeMarketAnalyzer {
         ) {
 
             return QuantMetrics(
-                0.0,
-                0.0,
-                0.0,
-                50.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                0.0,
-                50.0,
-                50.0,
-                50.0,
-                50.0,
-                50.0,
-                0.0,
-                0.0,
-                50.0,
-                50.0,
-                50.0
+                ema9 = 0.0,
+                ema21 = 0.0,
+                ema50 = 0.0,
+                rsi = 50.0,
+                macd = 0.0,
+                macdSignal = 0.0,
+                bollingerUpper = 0.0,
+                bollingerMiddle = 0.0,
+                bollingerLower = 0.0,
+                atr = 0.0,
+                adx = 0.0,
+                trend = 50.0,
+                momentum = 50.0,
+                structure = 50.0,
+                volume = 50.0,
+                volatility = 50.0,
+                support = 0.0,
+                resistance = 0.0,
+                breakout = 50.0,
+                candlePattern = 50.0,
+                divergence = 50.0
             )
         }
 
         val ema9 =
-            ema(closes, 9)
+            ema(
+                closes,
+                9
+            )
 
         val ema21 =
-            ema(closes, 21)
+            ema(
+                closes,
+                21
+            )
 
         val ema50 =
-            ema(closes, 50)
+            ema(
+                closes,
+                50
+            )
 
         val rsiValue =
-            rsi(closes)
+            rsi(
+                closes
+            )
 
         val macdResult =
-            macd(closes)
+            macd(
+                closes
+            )
 
         val bands =
-            bollinger(closes)
+            bollinger(
+                closes
+            )
 
         val atrValue =
-            atr(candles)
+            atr(
+                candles
+            )
 
         val adxValue =
-            adx(candles)
+            adx(
+                candles
+            )
 
         val trendValue =
             when {
@@ -939,19 +1169,29 @@ object RealtimeMarketAnalyzer {
                         rsiValue -
                             50.0
                     ) *
-                    1.4
+                        1.4
             )
 
         val support =
             candles
-                .takeLast(30)
+                .takeLast(
+                    min(
+                        30,
+                        candles.size
+                    )
+                )
                 .minOf {
                     it.low
                 }
 
         val resistance =
             candles
-                .takeLast(30)
+                .takeLast(
+                    min(
+                        30,
+                        candles.size
+                    )
+                )
                 .maxOf {
                     it.high
                 }
@@ -971,19 +1211,31 @@ object RealtimeMarketAnalyzer {
             trend = trendValue,
             momentum = momentumValue,
             structure =
-                structure(candles),
+                structure(
+                    candles
+                ),
             volume =
-                volumeScore(candles),
+                volumeScore(
+                    candles
+                ),
             volatility =
-                volatilityScore(candles),
+                volatilityScore(
+                    candles
+                ),
             support = support,
             resistance = resistance,
             breakout =
-                breakout(candles),
+                breakout(
+                    candles
+                ),
             candlePattern =
-                candlePattern(candles),
+                candlePattern(
+                    candles
+                ),
             divergence =
-                divergence(candles)
+                divergence(
+                    candles
+                )
         )
     }
 
@@ -999,7 +1251,9 @@ object RealtimeMarketAnalyzer {
     ): RealtimeAnalysis {
 
         val normalizedTimestamp =
-            normalizeTimestamp(timestamp)
+            normalizeTimestamp(
+                timestamp
+            )
 
         val metrics =
             candlesByTimeframe
@@ -1007,7 +1261,9 @@ object RealtimeMarketAnalyzer {
                     it.value.isNotEmpty()
                 }
                 .mapValues {
-                    metrics(it.value)
+                    metrics(
+                        it.value
+                    )
                 }
 
         if (
@@ -1019,6 +1275,12 @@ object RealtimeMarketAnalyzer {
             )
         }
 
+        /*
+         * Peso estrutural dos timeframes.
+         *
+         * H1/H4/D1 têm maior peso para direção.
+         * M1/M5 servem principalmente para timing.
+         */
         val weights =
             mapOf(
                 "M1" to 0.05,
@@ -1030,9 +1292,14 @@ object RealtimeMarketAnalyzer {
                 "D1" to 0.15
             )
 
-        var bullish = 0.0
-        var bearish = 0.0
-        var totalWeight = 0.0
+        var bullish =
+            0.0
+
+        var bearish =
+            0.0
+
+        var totalWeight =
+            0.0
 
         for (
             (timeframe, m) in metrics
@@ -1042,18 +1309,35 @@ object RealtimeMarketAnalyzer {
                 weights[timeframe]
                     ?: 0.05
 
-            totalWeight += weight
+            totalWeight +=
+                weight
+
+            /*
+             * Fibonacci entra como confirmação
+             * estrutural adicional.
+             */
+            val fibonacci =
+                fibonacciScore(
+                    candlesByTimeframe[
+                        timeframe
+                    ].orEmpty()
+                )
 
             val components =
                 listOf(
                     m.trend,
                     m.momentum,
+                    m.structure,
+                    m.volume,
                     m.candlePattern,
-                    m.breakout
+                    m.breakout,
+                    fibonacci
                 )
 
             val local =
-                mean(components)
+                mean(
+                    components
+                )
 
             if (
                 local >= 55.0
@@ -1093,6 +1377,9 @@ object RealtimeMarketAnalyzer {
             ) /
                 totalWeight
 
+        /*
+         * Timeframe principal.
+         */
         val primary =
             metrics["M15"]
                 ?: metrics.values.first()
@@ -1109,6 +1396,9 @@ object RealtimeMarketAnalyzer {
             metrics["D1"]
                 ?: primary
 
+        /*
+         * Confluência estrutural.
+         */
         val mtfDirections =
             listOf(
                 primary.trend,
@@ -1127,6 +1417,12 @@ object RealtimeMarketAnalyzer {
                 it <= 40.0
             }
 
+        val mtfNeutral =
+            mtfDirections.count {
+                it > 40.0 &&
+                    it < 60.0
+            }
+
         val mtfConfluence =
             max(
                 mtfBull,
@@ -1135,6 +1431,34 @@ object RealtimeMarketAnalyzer {
                 mtfDirections.size *
                 100.0
 
+        /*
+         * Conflito entre timeframes.
+         */
+        val timeframeConflict =
+            if (
+                mtfBull > 0 &&
+                mtfBear > 0
+            ) {
+
+                min(
+                    100.0,
+                    (
+                        min(
+                            mtfBull,
+                            mtfBear
+                        ).toDouble() /
+                            mtfDirections.size
+                    ) *
+                        100.0
+                )
+
+            } else {
+                0.0
+            }
+
+        /*
+         * Confirmação dos indicadores.
+         */
         val indicatorBull =
             listOf(
                 primary.trend >= 60.0,
@@ -1143,7 +1467,9 @@ object RealtimeMarketAnalyzer {
                     primary.macdSignal,
                 primary.ema9 >
                     primary.ema21,
-                primary.breakout >= 70.0
+                primary.breakout >= 70.0,
+                primary.candlePattern >= 60.0,
+                primary.structure >= 55.0
             ).count {
                 it
             }
@@ -1156,93 +1482,191 @@ object RealtimeMarketAnalyzer {
                     primary.macdSignal,
                 primary.ema9 <
                     primary.ema21,
-                primary.breakout <= 30.0
+                primary.breakout <= 30.0,
+                primary.candlePattern <= 40.0,
+                primary.structure <= 45.0
             ).count {
                 it
             }
+
+        /*
+         * Divergência é tratada como risco,
+         * e não simplesmente como direção.
+         */
+        val divergenceRisk =
+            when {
+
+                primary.divergence <= 30.0 &&
+                    indicatorBull >= indicatorBear ->
+                    65.0
+
+                primary.divergence >= 70.0 &&
+                    indicatorBear >= indicatorBull ->
+                    65.0
+
+                else ->
+                    15.0
+            }
+
+        /*
+         * FALSO SINAL
+         *
+         * Quanto maior:
+         * maior o provisionamento necessário.
+         */
+        val confirmationBalance =
+            abs(
+                indicatorBull -
+                    indicatorBear
+            ).toDouble() /
+                7.0 *
+                100.0
 
         val falseSignal =
             clamp(
                 100.0 -
                     (
                         mtfConfluence *
-                            0.45 +
-                        abs(
-                            indicatorBull -
-                                indicatorBear
-                        ) *
-                            8.0 +
+                            0.30 +
+
+                        confirmationBalance *
+                            0.20 +
+
                         primary.adx *
-                            0.25
+                            0.15 +
+
+                        primary.volume *
+                            0.10 +
+
+                        primary.structure *
+                            0.10 +
+
+                        (
+                            100.0 -
+                                timeframeConflict
+                        ) *
+                            0.10 +
+
+                        (
+                            100.0 -
+                                divergenceRisk
+                        ) *
+                            0.05
                     )
             )
 
+        /*
+         * FSI = índice de risco do sinal.
+         *
+         * FSI alto = sinal mais vulnerável.
+         */
         val fsi =
             clamp(
-                (
-                    falseSignal *
-                        0.35 +
+                falseSignal *
+                    0.35 +
+
                     abs(
                         primary.rsi -
                             50.0
                     ) *
-                        0.25 +
+                        0.10 +
+
                     primary.volatility *
                         0.15 +
+
                     (
                         100.0 -
                             mtfConfluence
                     ) *
-                        0.25
-                )
+                        0.20 +
+
+                    timeframeConflict *
+                        0.10 +
+
+                    divergenceRisk *
+                        0.10
             )
 
+        /*
+         * Score direcional.
+         */
         val directionalScore =
             clamp(
                 50.0 +
+
                     directionalEdge *
-                        0.55 +
+                        0.75 +
+
                     (
                         indicatorBull -
                             indicatorBear
                     ) *
-                        6.0 +
+                        4.5 +
+
                     (
                         mtfBull -
                             mtfBear
                     ) *
-                        7.0
+                        6.0 +
+
+                    (
+                        primary.trend -
+                            50.0
+                    ) *
+                        0.15
             )
 
+        /*
+         * SCORE FINAL
+         *
+         * O falso sinal reduz o score.
+         * A confluência e força de tendência
+         * aumentam o score.
+         */
         val score =
             clamp(
                 directionalScore -
-                    fsi * 0.35 +
+
+                    fsi *
+                        0.30 +
+
                     mtfConfluence *
                         0.20 +
+
                     primary.adx *
-                        0.10
+                        0.10 +
+
+                    primary.volume *
+                        0.05
             )
 
+        /*
+         * Direção dominante.
+         */
         val direction =
             when {
 
                 bullish >
-                    bearish * 1.20 &&
+                    bearish * 1.18 &&
                     indicatorBull >
-                    indicatorBear ->
+                    indicatorBear &&
+                    mtfBull >= mtfBear ->
                     "COMPRA"
 
                 bearish >
-                    bullish * 1.20 &&
+                    bullish * 1.18 &&
                     indicatorBear >
-                    indicatorBull ->
+                    indicatorBull &&
+                    mtfBear >= mtfBull ->
                     "VENDA"
 
                 else ->
                     "NEUTRO"
             }
 
+        /*
+         * Regime de mercado.
+         */
         val regime =
             when {
 
@@ -1252,25 +1676,36 @@ object RealtimeMarketAnalyzer {
                 primary.adx >= 35.0 ->
                     "TENDÊNCIA"
 
-                primary.volatility >= 65.0 ->
+                primary.volatility >= 70.0 ->
                     "VOLATILIDADE ALTA"
+
+                mtfNeutral >= 2 ->
+                    "LATERAL"
 
                 else ->
                     "LATERAL / INDEFINIDO"
             }
 
-                val decision =
+        /*
+         * PROVISIONAMENTO
+         *
+         * O motor somente libera uma direção
+         * quando a probabilidade supera o risco.
+         */
+        val decision =
             when {
 
                 direction == "COMPRA" &&
                     score >= 70.0 &&
                     fsi < 35.0 &&
+                    falseSignal < 45.0 &&
                     mtfConfluence >= 60.0 ->
                     "COMPRA"
 
                 direction == "VENDA" &&
                     score <= 30.0 &&
                     fsi < 35.0 &&
+                    falseSignal < 45.0 &&
                     mtfConfluence >= 60.0 ->
                     "VENDA"
 
@@ -1278,27 +1713,38 @@ object RealtimeMarketAnalyzer {
                     "AGUARDAR"
             }
 
+        /*
+         * Confiança final.
+         */
         val confidence =
             clamp(
                 abs(
                     score -
                         50.0
-                ) * 1.4 +
-                    mtfConfluence * 0.35 -
-                    fsi * 0.40
+                ) *
+                    1.25 +
+
+                    mtfConfluence *
+                        0.30 +
+
+                    primary.adx *
+                        0.10 -
+
+                    fsi *
+                        0.45 -
+
+                    timeframeConflict *
+                        0.15
             )
 
-        /*
-         * O timestamp pode vir da Twelve Data
-         * em segundos ou milissegundos.
-         * Aqui usamos o timestamp normalizado.
-         */
         val marketDataQuality =
             if (
                 price > 0.0 &&
                     normalizedTimestamp > 0L &&
                     now >= normalizedTimestamp &&
-                    now - normalizedTimestamp <= 120_000L
+                    now -
+                        normalizedTimestamp <=
+                    120_000L
             ) {
                 "GOOD"
             } else {
@@ -1307,34 +1753,51 @@ object RealtimeMarketAnalyzer {
 
         val market =
             MarketData(
-                asset = symbol,
-                timestamp = normalizedTimestamp,
-                price = price,
+                asset =
+                    symbol,
+
+                timestamp =
+                    normalizedTimestamp,
+
+                price =
+                    price,
+
                 structure =
                     primary.structure,
+
                 trend =
                     primary.trend,
+
                 momentum =
                     primary.momentum,
+
                 volume =
                     primary.volume,
+
                 volatility =
                     primary.volatility,
+
                 fsi =
                     fsi,
+
                 multiTimeframe =
                     mtfConfluence,
+
                 dataQuality =
                     marketDataQuality,
+
                 bid =
                     bid,
+
                 ask =
                     ask,
+
                 spread =
                     max(
                         0.0,
                         ask - bid
                     ),
+
                 source =
                     "TWELVE_DATA"
             )
