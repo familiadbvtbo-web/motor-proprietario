@@ -8,50 +8,36 @@ import android.os.Looper
 import android.view.Gravity
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
-import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
-import kotlin.concurrent.thread
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var statusView: TextView
+    private lateinit var assetView: TextView
     private lateinit var priceView: TextView
+    private lateinit var timeView: TextView
     private lateinit var analysisView: TextView
-    private lateinit var assetsSpinner: Spinner
 
-    private val handler = Handler(Looper.getMainLooper())
+    private val handler =
+        Handler(Looper.getMainLooper())
 
-    /*
-     * IMPORTANTE:
-     *
-     * Para teste no mesmo Wi-Fi:
-     *
-     * http://IP_DO_PC:8080
-     *
-     * Não use localhost.
-     *
-     * localhost no Android significa o próprio celular.
-     */
-    private val gatewayUrl =
-        "http://192.168.1.100:8080"
+    private var selectedAsset =
+        "EUR/USD"
 
-    private var selectedAsset = "EURUSD"
+    private var latestQuote:
+        RealTimeQuote? = null
 
-    private val updateTask = object : Runnable {
-        override fun run() {
+    private val client =
+        TwelveDataClient()
 
-            loadAnalysis()
+    private fun dp(
+        value: Int
+    ): Int {
 
-            handler.postDelayed(
-                this,
-                2000L
-            )
-        }
+        return (
+            value *
+                resources.displayMetrics.density
+        ).toInt()
     }
-
-    private fun dp(value: Int): Int =
-        (value * resources.displayMetrics.density).toInt()
 
     private fun text(
         value: String,
@@ -62,9 +48,7 @@ class MainActivity : AppCompatActivity() {
         return TextView(this).apply {
 
             text = value
-
             textSize = size
-
             setTextColor(Color.WHITE)
 
             if (bold) {
@@ -113,78 +97,118 @@ class MainActivity : AppCompatActivity() {
                 )
             }
 
-        val title = text(
-            "MOTOR PROPRIETÁRIO",
-            25f,
-            true
-        )
+        val title =
+            text(
+                "MOTOR PROPRIETÁRIO",
+                26f,
+                true
+            )
 
         title.gravity =
             Gravity.CENTER_HORIZONTAL
 
-        val statusTitle = text(
-            "FOREX — MERCADO REAL",
-            19f,
-            true
-        )
+        val version =
+            text(
+                "ANÁLISE REAL • TEMPO REAL",
+                17f
+            )
 
-        statusView = text(
-            "Conectando ao gateway..."
-        )
+        version.gravity =
+            Gravity.CENTER_HORIZONTAL
 
-        val assetTitle = text(
-            "ATIVO",
-            18f,
-            true
-        )
+        statusView =
+            text(
+                "CONECTANDO..."
+            )
 
-        assetsSpinner =
-            Spinner(this)
+        val assetTitle =
+            text(
+                "ATIVO",
+                19f,
+                true
+            )
 
-        val refreshButton =
+        assetView =
+            text(
+                selectedAsset,
+                22f,
+                true
+            )
+
+        val priceTitle =
+            text(
+                "PREÇO REAL",
+                19f,
+                true
+            )
+
+        priceView =
+            text(
+                "Aguardando cotação...",
+                24f,
+                true
+            )
+
+        val timeTitle =
+            text(
+                "ATUALIZAÇÃO",
+                17f,
+                true
+            )
+
+        timeView =
+            text(
+                "—"
+            )
+
+        val analysisTitle =
+            text(
+                "MOTOR DE ANÁLISE",
+                19f,
+                true
+            )
+
+        analysisView =
+            text(
+                "Aguardando dados reais..."
+            )
+
+        val changeButton =
             Button(this).apply {
 
-                text = "ATUALIZAR ATIVOS"
+                text =
+                    "ANALISAR EUR/USD"
 
                 setOnClickListener {
 
-                    loadAssets()
+                    selectedAsset =
+                        "EUR/USD"
+
+                    assetView.text =
+                        selectedAsset
+
+                    reconnect()
                 }
             }
 
-        val priceTitle = text(
-            "PREÇO EM TEMPO REAL",
-            18f,
-            true
-        )
-
-        priceView = text(
-            "Aguardando dados..."
-        )
-
-        val analysisTitle = text(
-            "ANÁLISE DO MOTOR",
-            18f,
-            true
-        )
-
-        analysisView = text(
-            "Aguardando análise..."
-        )
-
         root.addView(title)
-        root.addView(statusTitle)
+        root.addView(version)
+
         root.addView(statusView)
 
         root.addView(assetTitle)
-        root.addView(assetsSpinner)
-        root.addView(refreshButton)
+        root.addView(assetView)
 
         root.addView(priceTitle)
         root.addView(priceView)
 
+        root.addView(timeTitle)
+        root.addView(timeView)
+
         root.addView(analysisTitle)
         root.addView(analysisView)
+
+        root.addView(changeButton)
 
         val scroll =
             ScrollView(this).apply {
@@ -194,347 +218,118 @@ class MainActivity : AppCompatActivity() {
 
         setContentView(scroll)
 
-        loadAssets()
-
-        handler.post(updateTask)
+        connectRealtime()
     }
 
-    private fun loadAssets() {
+    private fun connectRealtime() {
 
-        thread {
+        statusView.text =
+            "CONECTANDO AO MERCADO REAL..."
 
-            try {
+        client.connect(
+            symbols =
+                listOf(
+                    selectedAsset
+                ),
 
-                val json =
-                    getJson(
-                        "$gatewayUrl/assets"
-                    )
+            onQuote = {
+                quote ->
 
-                val array =
-                    json.getJSONArray(
-                        "assets"
-                    )
-
-                val assets =
-                    mutableListOf<String>()
-
-                for (
-                    i in 0 until array.length()
-                ) {
-
-                    assets.add(
-                        array.getString(i)
-                    )
-                }
-
-                assets.sort()
+                latestQuote =
+                    quote
 
                 runOnUiThread {
 
-                    if (assets.isEmpty()) {
-
-                        statusView.text =
-                            "MT5 conectado, mas nenhum ativo foi encontrado."
-
-                        return@runOnUiThread
-                    }
-
-                    val adapter =
-                        ArrayAdapter(
-                            this,
-                            android.R.layout.simple_spinner_dropdown_item,
-                            assets
-                        )
-
-                    assetsSpinner.adapter =
-                        adapter
-
-                    val index =
-                        assets.indexOf(
-                            selectedAsset
-                        )
-
-                    if (index >= 0) {
-
-                        assetsSpinner
-                            .setSelection(index)
-                    }
-
-                    assetsSpinner
-                        .onItemSelectedListener =
-                        object :
-                            android.widget.AdapterView.OnItemSelectedListener {
-
-                            override fun onNothingSelected(
-                                parent: android.widget.AdapterView<*>?
-                            ) {
-                            }
-
-                            override fun onItemSelected(
-                                parent: android.widget.AdapterView<*>?,
-                                view: android.view.View?,
-                                position: Int,
-                                id: Long
-                            ) {
-
-                                selectedAsset =
-                                    assets[position]
-                            }
-                        }
-
-                    statusView.text =
-                        "ONLINE\n" +
-                        "ATIVOS: ${assets.size}\n" +
-                        "FONTE: MT5"
+                    updateQuote(
+                        quote
+                    )
                 }
+            },
 
-            } catch (error: Exception) {
+            onError = {
+                error ->
 
                 runOnUiThread {
 
                     statusView.text =
-                        "ERRO DE CONEXÃO\n" +
-                        error.message
+                        "ERRO DE DADOS\n" +
+                        (
+                            error.message
+                                ?: "Conexão indisponível"
+                        )
                 }
             }
-        }
+        )
     }
 
-    private fun loadAnalysis() {
+    private fun updateQuote(
+        quote: RealTimeQuote
+    ) {
 
-        val asset =
-            selectedAsset
+        statusView.text =
+            "● ONLINE\n" +
+            "FONTE: TWELVE DATA\n" +
+            "DADOS: REAIS\n" +
+            "EXECUÇÃO: DESATIVADA"
 
-        thread {
+        assetView.text =
+            quote.symbol
 
-            try {
-
-                val url =
-                    "$gatewayUrl/analysis" +
-                    "?symbol=$asset" +
-                    "&timeframes=" +
-                    "M1,M5,M15,M30,H1,H4,D1"
-
-                val json =
-                    getJson(url)
-
-                val analysis =
-                    json.getJSONObject(
-                        "analysis"
-                    )
-
-                val price =
-                    analysis.getDouble(
-                        "price"
-                    )
-
-                val bid =
-                    analysis.getDouble(
-                        "bid"
-                    )
-
-                val ask =
-                    analysis.getDouble(
-                        "ask"
-                    )
-
-                val spread =
-                    analysis.getDouble(
-                        "spread"
-                    )
-
-                val trend =
-                    analysis.getDouble(
-                        "trend"
-                    )
-
-                val momentum =
-                    analysis.getDouble(
-                        "momentum"
-                    )
-
-                val volatility =
-                    analysis.getDouble(
-                        "volatility"
-                    )
-
-                val volume =
-                    analysis.getDouble(
-                        "volume"
-                    )
-
-                val structure =
-                    analysis.getDouble(
-                        "structure"
-                    )
-
-                val mtf =
-                    analysis.getDouble(
-                        "multi_timeframe"
-                    )
-
-                val quality =
-                    analysis.getString(
-                        "data_quality"
-                    )
-
-                val timeframes =
-                    analysis.getJSONObject(
-                        "timeframes"
-                    )
-
-                val result =
-                    StringBuilder()
-
-                val names =
-                    listOf(
-                        "M1",
-                        "M5",
-                        "M15",
-                        "M30",
-                        "H1",
-                        "H4",
-                        "D1"
-                    )
-
-                for (name in names) {
-
-                    if (
-                        timeframes.has(name)
-                    ) {
-
-                        val tf =
-                            timeframes.getJSONObject(
-                                name
-                            )
-
-                        result.append(
-                            "\n$name\n"
-                        )
-
-                        result.append(
-                            "Preço: ${
-                                tf.getDouble(
-                                    "price"
-                                )
-                            }\n"
-                        )
-
-                        result.append(
-                            "Tendência: ${
-                                tf.getDouble(
-                                    "trend"
-                                )
-                            }\n"
-                        )
-
-                        result.append(
-                            "Momentum: ${
-                                tf.getDouble(
-                                    "momentum"
-                                )
-                            }\n"
-                        )
-
-                        result.append(
-                            "Volatilidade: ${
-                                tf.getDouble(
-                                    "volatility"
-                                )
-                            }\n"
-                        )
-                    }
-                }
-
-                runOnUiThread {
-
-                    priceView.text =
-                        "$asset\n\n" +
-                        "PREÇO: $price\n" +
-                        "BID: $bid\n" +
-                        "ASK: $ask\n" +
-                        "SPREAD: $spread\n" +
-                        "QUALIDADE: $quality"
-
-                    analysisView.text =
-                        "ESTRUTURA: $structure\n" +
-                        "TENDÊNCIA: $trend\n" +
-                        "MOMENTUM: $momentum\n" +
-                        "VOLUME: $volume\n" +
-                        "VOLATILIDADE: $volatility\n" +
-                        "CONFLUÊNCIA MTF: $mtf\n" +
-                        result.toString()
-                }
-
-            } catch (error: Exception) {
-
-                runOnUiThread {
-
-                    priceView.text =
-                        "Sem dados reais"
-
-                    analysisView.text =
-                        "Gateway indisponível:\n" +
-                        error.message
-                }
-            }
-        }
-    }
-
-    private fun getJson(
-        address: String
-    ): JSONObject {
-
-        val connection =
-            URL(address)
-                .openConnection()
-                    as HttpURLConnection
-
-        try {
-
-            connection.requestMethod =
-                "GET"
-
-            connection.connectTimeout =
-                5000
-
-            connection.readTimeout =
-                5000
-
-            connection.setRequestProperty(
-                "Accept",
-                "application/json"
+        priceView.text =
+            String.format(
+                "%.5f",
+                quote.price
             )
 
-            val code =
-                connection.responseCode
-
-            if (code !in 200..299) {
-
-                throw RuntimeException(
-                    "HTTP $code"
+        timeView.text =
+            java.text.SimpleDateFormat(
+                "dd/MM/yyyy HH:mm:ss",
+                java.util.Locale.getDefault()
+            ).format(
+                java.util.Date(
+                    quote.timestamp
                 )
-            }
+            )
 
-            val body =
-                connection.inputStream
-                    .bufferedReader()
-                    .use {
-                        it.readText()
-                    }
+        analysisView.text =
+            """
+            COTAÇÃO RECEBIDA
 
-            return JSONObject(body)
+            Ativo: ${quote.symbol}
+            Preço: ${quote.price}
 
-        } finally {
+            O preço acima está chegando
+            diretamente pelo fluxo em tempo real.
 
-            connection.disconnect()
-        }
+            PRÓXIMA CAMADA:
+            candles → timeframes →
+            FSI → falso sinal →
+            sequência → score →
+            confluência → análise final
+            """.trimIndent()
+    }
+
+    private fun reconnect() {
+
+        client.disconnect()
+
+        latestQuote = null
+
+        priceView.text =
+            "Reconectando..."
+
+        analysisView.text =
+            "Solicitando dados reais..."
+
+        connectRealtime()
     }
 
     override fun onDestroy() {
 
-        handler.removeCallbacks(
-            updateTask
+        client.disconnect()
+
+        handler.removeCallbacksAndMessages(
+            null
         )
 
         super.onDestroy()
