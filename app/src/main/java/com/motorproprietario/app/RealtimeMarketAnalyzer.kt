@@ -1260,12 +1260,20 @@ object RealtimeMarketAnalyzer {
             }
 
         val decision =
-            when {
+    when {
 
-                direction == "COMPRA" &&
-                    score >= 70.0 &&
-                    fsi < 35.0 &&
-                    mtfConfluence >= 60.0 ->
-                    "COMPRA"
+        direction == "COMPRA" &&
+            score >= 70.0 &&
+            fsi < 35.0 &&
+            mtfConfluence >= 60.0 ->
+            "COMPRA"
 
-                direction ==
+        direction == "VENDA" &&
+            score <= 30.0 &&
+            fsi < 35.0 &&
+            mtfConfluence >= 60.0 ->
+            "VENDA"
+
+        else ->
+            "AGUARDAR"
+    }
