@@ -9,6 +9,7 @@ import android.view.Gravity
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import kotlin.concurrent.thread
+import kotlin.math.abs
 
 class MainActivity : AppCompatActivity() {
 
