@@ -19,7 +19,17 @@ data class ProbabilityResult(
     val sellProbability: Double,
     val neutralProbability: Double,
     val directionalBias: String,
-    val confidence: Double
+    val confidence: Double,
+
+    // Probabilidade antes do provisionamento
+    val rawBuyProbability: Double = 0.0,
+    val rawSellProbability: Double = 0.0,
+
+    // Desconto provocado pelo risco
+    val provisionPenalty: Double = 0.0,
+
+    // Qualidade da evidência
+    val evidenceStrength: Double = 0.0
 )
 
 object ProbabilityEngine {
@@ -41,19 +51,11 @@ object ProbabilityEngine {
         neutral: Double
     ): Triple<Double, Double, Double> {
 
-        val safeBuy =
-            max(0.0, buy)
+        val b = max(0.0, buy)
+        val s = max(0.0, sell)
+        val n = max(0.0, neutral)
 
-        val safeSell =
-            max(0.0, sell)
-
-        val safeNeutral =
-            max(0.0, neutral)
-
-        val total =
-            safeBuy +
-                safeSell +
-                safeNeutral
+        val total = b + s + n
 
         if (total <= 0.0) {
             return Triple(
@@ -64,27 +66,23 @@ object ProbabilityEngine {
         }
 
         return Triple(
-            safeBuy / total * 100.0,
-            safeSell / total * 100.0,
-            safeNeutral / total * 100.0
+            b / total * 100.0,
+            s / total * 100.0,
+            n / total * 100.0
         )
+    }
+
+    private fun directionalEvidence(
+        value: Double
+    ): Double {
+        return clamp(value) - 50.0
     }
 
     fun calculate(
         input: ProbabilityInput
     ): ProbabilityResult {
 
-        val m =
-            input.metrics
-
-        /*
-         * Cada componente produz evidência
-         * entre 0 e 100.
-         *
-         * 50 = neutro
-         * >50 = comprador
-         * <50 = vendedor
-         */
+        val m = input.metrics
 
         val trend =
             clamp(m.trend)
@@ -107,52 +105,42 @@ object ProbabilityEngine {
         val divergence =
             clamp(m.divergence)
 
-        /*
-         * MACD é convertido para uma escala
-         * direcional centrada em 50.
-         */
+        val mtf =
+            clamp(input.mtfConfluence)
+
+        val falseRisk =
+            clamp(input.falseSignalRisk)
+
         val macdEvidence =
             when {
-
-                m.macd > m.macdSignal ->
-                    65.0
-
-                m.macd < m.macdSignal ->
-                    35.0
-
-                else ->
-                    50.0
+                m.macd > m.macdSignal -> 65.0
+                m.macd < m.macdSignal -> 35.0
+                else -> 50.0
             }
 
-        /*
-         * EMA 9 x EMA 21.
-         */
         val emaEvidence =
             when {
-
-                m.ema9 > m.ema21 ->
-                    65.0
-
-                m.ema9 < m.ema21 ->
-                    35.0
-
-                else ->
-                    50.0
+                m.ema9 > m.ema21 -> 65.0
+                m.ema9 < m.ema21 -> 35.0
+                else -> 50.0
             }
 
-        /*
-         * ADX mede força da tendência.
-         * Ele não determina sozinho a direção.
-         */
-        val trendStrength =
-            clamp(
-                m.adx
-            )
+        val emaLongEvidence =
+            when {
+                m.ema21 > m.ema50 -> 65.0
+                m.ema21 < m.ema50 -> 35.0
+                else -> 50.0
+            }
 
-        /*
-         * Fibonacci e fluxo institucional
-         * entram como evidências adicionais.
-         */
+        val rsiEvidence =
+            when {
+                m.rsi > 55.0 && m.rsi < 70.0 -> 65.0
+                m.rsi >= 70.0 -> 55.0
+                m.rsi < 45.0 && m.rsi > 30.0 -> 35.0
+                m.rsi <= 30.0 -> 45.0
+                else -> 50.0
+            }
+
         val fibonacciBuy =
             clamp(
                 input.fibonacciBullish
@@ -174,147 +162,176 @@ object ProbabilityEngine {
             )
 
         /*
-         * Peso dos componentes.
+         * Grupos de evidência.
          *
-         * Indicadores correlacionados não recebem
-         * peso excessivo individualmente.
+         * Evitamos contar EMA/MACD como evidências
+         * completamente independentes.
          */
-        val buyEvidence =
+
+        val trendGroup =
             (
-                trend * 0.18 +
-                momentum * 0.10 +
-                structure * 0.12 +
-                volume * 0.08 +
-                candle * 0.08 +
-                breakout * 0.10 +
-                macdEvidence * 0.10 +
-                emaEvidence * 0.08 +
-                fibonacciBuy * 0.06 +
-                institutionalBuy * 0.10
+                trend * 0.50 +
+                emaEvidence * 0.25 +
+                emaLongEvidence * 0.25
             )
 
-        val sellEvidence =
+        val momentumGroup =
             (
-                (100.0 - trend) * 0.18 +
-                (100.0 - momentum) * 0.10 +
-                (100.0 - structure) * 0.12 +
-                (100.0 - volume) * 0.08 +
-                (100.0 - candle) * 0.08 +
-                (100.0 - breakout) * 0.10 +
-                (100.0 - macdEvidence) * 0.10 +
-                (100.0 - emaEvidence) * 0.08 +
-                fibonacciSell * 0.06 +
-                institutionalSell * 0.10
+                momentum * 0.45 +
+                rsiEvidence * 0.30 +
+                macdEvidence * 0.25
             )
 
-        /*
-         * Divergência reduz a convicção
-         * quando está apontando contra a direção.
-         */
-        val divergencePenalty =
-            abs(
-                divergence - 50.0
-            ) * 0.35
+        val priceActionGroup =
+            (
+                structure * 0.35 +
+                candle * 0.25 +
+                breakout * 0.25 +
+                divergence * 0.15
+            )
+
+        val buyRaw =
+            trendGroup * 0.22 +
+            momentumGroup * 0.16 +
+            priceActionGroup * 0.20 +
+            volume * 0.08 +
+            mtf * 0.12 +
+            fibonacciBuy * 0.07 +
+            institutionalBuy * 0.15
+
+        val sellRaw =
+            (100.0 - trendGroup) * 0.22 +
+            (100.0 - momentumGroup) * 0.16 +
+            (100.0 - priceActionGroup) * 0.20 +
+            (100.0 - volume) * 0.08 +
+            (100.0 - mtf) * 0.12 +
+            fibonacciSell * 0.07 +
+            institutionalSell * 0.15
 
         /*
-         * Confluência MTF aumenta a confiança
-         * somente quando existe concordância.
+         * Divergência forte contra a direção
+         * recebe penalização adicional.
          */
-        val mtfFactor =
-            clamp(
-                input.mtfConfluence
-            ) / 100.0
+        val buyDivergencePenalty =
+            if (divergence < 40.0) {
+                (50.0 - divergence) * 0.35
+            } else {
+                0.0
+            }
 
-        /*
-         * ADX funciona como confirmação da força,
-         * não como direção.
-         */
-        val strengthFactor =
-            0.75 +
-                (
-                    trendStrength / 100.0
-                ) * 0.25
+        val sellDivergencePenalty =
+            if (divergence > 60.0) {
+                (divergence - 50.0) * 0.35
+            } else {
+                0.0
+            }
 
         var buy =
-            buyEvidence *
-                strengthFactor *
-                (
-                    0.75 +
-                        mtfFactor * 0.25
-                )
-
-        var sell =
-            sellEvidence *
-                strengthFactor *
-                (
-                    0.75 +
-                        mtfFactor * 0.25
-                )
-
-        /*
-         * Provisionamento:
-         * quanto maior o risco de falso sinal,
-         * menor a confiança direcional.
-         */
-        val falseRisk =
-            clamp(
-                input.falseSignalRisk
+            max(
+                0.0,
+                buyRaw -
+                    buyDivergencePenalty
             )
 
-        val riskFactor =
-            1.0 -
-                falseRisk / 100.0
-
-        buy *=
-            0.60 +
-                riskFactor * 0.40
-
-        sell *=
-            0.60 +
-                riskFactor * 0.40
+        var sell =
+            max(
+                0.0,
+                sellRaw -
+                    sellDivergencePenalty
+            )
 
         /*
-         * Se os dois lados estão muito próximos,
-         * aumenta a probabilidade de NEUTRO.
+         * Confluência MTF baixa não destrói o sinal,
+         * mas reduz sua força.
+         */
+        val mtfFactor =
+            0.70 +
+                mtf / 100.0 * 0.30
+
+        buy *= mtfFactor
+        sell *= mtfFactor
+
+        /*
+         * Provisionamento progressivo.
+         *
+         * 0 risco = nenhum desconto.
+         * 100 risco = forte redução.
+         */
+        val provisionFactor =
+            1.0 -
+                (
+                    falseRisk / 100.0
+                ) * 0.65
+
+        val rawBuy =
+            buy
+
+        val rawSell =
+            sell
+
+        buy *= provisionFactor
+        sell *= provisionFactor
+
+        /*
+         * Conflito direcional.
          */
         val directionalDifference =
             abs(
                 buy - sell
             )
 
+        /*
+         * Quanto mais equilibrados os lados,
+         * maior a neutralidade.
+         */
         var neutral =
-            20.0
+            12.0
 
+        neutral +=
+            when {
+                directionalDifference < 4.0 ->
+                    35.0
+
+                directionalDifference < 8.0 ->
+                    22.0
+
+                directionalDifference < 14.0 ->
+                    12.0
+
+                else ->
+                    0.0
+            }
+
+        /*
+         * Falso sinal gera provisionamento.
+         */
+        neutral +=
+            falseRisk * 0.42
+
+        /*
+         * Volatilidade extrema sem confirmação
+         * aumenta cautela.
+         */
         if (
-            directionalDifference < 5.0
+            m.volatility >= 80.0 &&
+            mtf < 60.0
         ) {
-            neutral += 30.0
-        } else if (
-            directionalDifference < 10.0
-        ) {
-            neutral += 15.0
+            neutral += 12.0
         }
 
         /*
-         * FSI elevado aumenta neutralidade.
+         * ADX muito baixo significa pouca força
+         * de tendência.
          */
-        neutral +=
-            falseRisk * 0.30
+        if (m.adx < 20.0) {
+            neutral += 10.0
+        }
 
-        /*
-         * Divergência forte também aumenta cautela.
-         */
-        neutral +=
-            divergencePenalty * 0.30
-
-        /*
-         * Evita neutralidade exagerada.
-         */
         neutral =
             clamp(
                 neutral,
                 5.0,
-                90.0
+                92.0
             )
 
         val normalized =
@@ -335,7 +352,6 @@ object ProbabilityEngine {
 
         val directionalBias =
             when {
-
                 buyProbability >=
                     sellProbability &&
                     buyProbability >=
@@ -352,24 +368,38 @@ object ProbabilityEngine {
                     "NEUTRO"
             }
 
-        /*
-         * Confiança não é taxa histórica de acerto.
-         *
-         * É a força da evidência atual.
-         */
-        val strongestProbability =
+        val strongest =
             max(
                 buyProbability,
                 sellProbability
             )
 
+        val evidenceStrength =
+            clamp(
+                (
+                    abs(
+                        buyRaw -
+                            sellRaw
+                    ) * 1.15 +
+                    mtf * 0.25 +
+                    m.adx * 0.15 -
+                    falseRisk * 0.35
+                )
+            )
+
         val confidence =
             clamp(
                 (
-                    strongestProbability -
+                    strongest -
                         neutralProbability
-                ) *
-                    1.15
+                ) * 1.20 +
+                    evidenceStrength * 0.25 -
+                    falseRisk * 0.20
+            )
+
+        val provisionPenalty =
+            clamp(
+                falseRisk * 0.65
             )
 
         return ProbabilityResult(
@@ -386,7 +416,19 @@ object ProbabilityEngine {
                 directionalBias,
 
             confidence =
-                confidence
+                confidence,
+
+            rawBuyProbability =
+                clamp(rawBuy),
+
+            rawSellProbability =
+                clamp(rawSell),
+
+            provisionPenalty =
+                provisionPenalty,
+
+            evidenceStrength =
+                evidenceStrength
         )
     }
 }
