@@ -1,10 +1,12 @@
 package com.motorproprietario.app
 
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
 import org.json.JSONObject
-import java.net.URI
-import java.net.http.HttpClient
-import java.net.http.WebSocket
-import java.util.concurrent.CompletionStage
+import java.util.concurrent.TimeUnit
 
 data class RealTimeQuote(
     val symbol: String,
@@ -13,14 +15,22 @@ data class RealTimeQuote(
     val dayVolume: Double?
 )
 
-class TwelveDataClient(
-    private val apiKey: String
-) {
+class TwelveDataClient {
 
-    private var socket: WebSocket? = null
+    private val client =
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .pingInterval(10, TimeUnit.SECONDS)
+            .build()
+
+    private var webSocket: WebSocket? = null
 
     private var listener:
         ((RealTimeQuote) -> Unit)? = null
+
+    private var errorListener:
+        ((Throwable) -> Unit)? = null
 
     fun connect(
         symbols: List<String>,
@@ -29,195 +39,259 @@ class TwelveDataClient(
     ) {
 
         listener = onQuote
+        errorListener = onError
 
-        if (apiKey.isBlank()) {
+        disconnect()
+
+        if (symbols.isEmpty()) {
+
             onError(
-                IllegalStateException(
-                    "TWELVE_DATA_API_KEY_NOT_CONFIGURED"
+                IllegalArgumentException(
+                    "Nenhum ativo informado."
                 )
             )
+
             return
         }
+
+        val apiKey =
+            ApiConfig.TWELVE_DATA_API_KEY
+
+        if (apiKey.isBlank()) {
+
+            onError(
+                IllegalStateException(
+                    "TWELVE_DATA_API_KEY não configurada."
+                )
+            )
+
+            return
+        }
+
+        val cleanSymbols =
+            symbols
+                .map {
+                    it.trim()
+                }
+                .filter {
+                    it.isNotEmpty()
+                }
+                .distinct()
 
         val endpoint =
             "wss://ws.twelvedata.com/v1/quotes/price" +
             "?apikey=$apiKey"
 
-        try {
+        val request =
+            Request.Builder()
+                .url(endpoint)
+                .build()
 
-            socket =
-                HttpClient.newHttpClient()
-                    .newWebSocketBuilder()
-                    .buildAsync(
-                        URI.create(endpoint),
-                        object : WebSocket.Listener {
+        webSocket =
+            client.newWebSocket(
+                request,
+                object : WebSocketListener() {
 
-                            private val buffer =
-                                StringBuilder()
+                    override fun onOpen(
+                        webSocket: WebSocket,
+                        response: Response
+                    ) {
 
-                            override fun onOpen(
-                                webSocket: WebSocket
-                            ) {
-
-                                val cleanSymbols =
-                                    symbols
-                                        .filter {
-                                            it.isNotBlank()
-                                        }
-                                        .distinct()
-
-                                if (cleanSymbols.isEmpty()) {
-                                    onError(
-                                        IllegalArgumentException(
-                                            "NO_SYMBOLS"
-                                        )
-                                    )
-                                    return
-                                }
-
-                                val payload =
+                        val subscribe =
+                            JSONObject()
+                                .put(
+                                    "action",
+                                    "subscribe"
+                                )
+                                .put(
+                                    "params",
                                     JSONObject()
                                         .put(
-                                            "action",
-                                            "subscribe"
+                                            "symbols",
+                                            cleanSymbols
+                                                .joinToString(",")
                                         )
-                                        .put(
-                                            "params",
-                                            JSONObject()
-                                                .put(
-                                                    "symbols",
-                                                    cleanSymbols
-                                                        .joinToString(",")
-                                                )
-                                        )
-                                        .toString()
-
-                                webSocket.sendText(
-                                    payload,
-                                    true
                                 )
-                            }
+                                .toString()
 
-                            override fun onText(
-                                webSocket: WebSocket,
-                                data: CharSequence,
-                                last: Boolean
-                            ): CompletionStage<*>? {
+                        webSocket.send(
+                            subscribe
+                        )
+                    }
 
-                                buffer.append(data)
+                    override fun onMessage(
+                        webSocket: WebSocket,
+                        text: String
+                    ) {
 
-                                if (last) {
+                        processMessage(
+                            text
+                        )
+                    }
 
-                                    val message =
-                                        buffer.toString()
+                    override fun onClosing(
+                        webSocket: WebSocket,
+                        code: Int,
+                        reason: String
+                    ) {
 
-                                    buffer.setLength(0)
+                        webSocket.close(
+                            1000,
+                            "Encerrando conexão"
+                        )
+                    }
 
-                                    try {
+                    override fun onClosed(
+                        webSocket: WebSocket,
+                        code: Int,
+                        reason: String
+                    ) {
 
-                                        processMessage(
-                                            message
-                                        )
+                        this@TwelveDataClient.webSocket =
+                            null
+                    }
 
-                                    } catch (
-                                        error: Exception
-                                    ) {
+                    override fun onFailure(
+                        webSocket: WebSocket,
+                        t: Throwable,
+                        response: Response?
+                    ) {
 
-                                        onError(error)
-                                    }
-                                }
+                        this@TwelveDataClient.webSocket =
+                            null
 
-                                return null
-                            }
-
-                            override fun onError(
-                                webSocket: WebSocket,
-                                error: Throwable
-                            ) {
-
-                                onError(error)
-                            }
-                        }
-                    )
-                    .join()
-
-        } catch (error: Exception) {
-
-            onError(error)
-        }
+                        errorListener?.invoke(
+                            t
+                        )
+                    }
+                }
+            )
     }
 
     private fun processMessage(
         message: String
     ) {
 
-        val json =
-            JSONObject(message)
+        try {
 
-        val event =
-            json.optString("event")
+            val json =
+                JSONObject(message)
 
-        if (event != "price") {
-            return
-        }
+            /*
+             * Mensagens que não são preços,
+             * como heartbeat/status/error,
+             * não entram na análise.
+             */
 
-        val symbol =
-            json.optString("symbol")
-
-        val price =
-            json.optDouble(
-                "price",
-                Double.NaN
-            )
-
-        val timestamp =
-            json.optLong(
-                "timestamp",
-                0L
-            )
-
-        val volume =
-            if (
-                json.has("day_volume") &&
-                !json.isNull("day_volume")
-            ) {
-                json.optDouble(
-                    "day_volume",
-                    Double.NaN
+            val event =
+                json.optString(
+                    "event"
                 )
-            } else {
-                null
+
+            if (
+                event != "price"
+            ) {
+                return
             }
 
-        if (
-            symbol.isBlank() ||
-            !price.isFinite() ||
-            price <= 0.0 ||
-            timestamp <= 0L
-        ) {
-            return
-        }
+            val symbol =
+                json.optString(
+                    "symbol"
+                )
 
-        listener?.invoke(
-            RealTimeQuote(
-                symbol = symbol,
-                timestamp = timestamp * 1000L,
-                price = price,
-                dayVolume =
-                    volume?.takeIf {
-                        it.isFinite()
+            val price =
+                json.optDouble(
+                    "price",
+                    Double.NaN
+                )
+
+            val timestamp =
+                json.optLong(
+                    "timestamp",
+                    0L
+                )
+
+            val dayVolume =
+                if (
+                    json.has(
+                        "day_volume"
+                    ) &&
+                    !json.isNull(
+                        "day_volume"
+                    )
+                ) {
+
+                    json.optDouble(
+                        "day_volume",
+                        Double.NaN
+                    )
+
+                } else {
+
+                    null
+                }
+
+            if (
+                symbol.isBlank()
+            ) {
+                return
+            }
+
+            if (
+                !price.isFinite() ||
+                price <= 0.0
+            ) {
+                return
+            }
+
+            val timestampMs =
+                if (timestamp > 0L) {
+
+                    if (
+                        timestamp < 10_000_000_000L
+                    ) {
+                        timestamp * 1000L
+                    } else {
+                        timestamp
                     }
+
+                } else {
+
+                    System.currentTimeMillis()
+                }
+
+            listener?.invoke(
+                RealTimeQuote(
+                    symbol = symbol,
+                    timestamp = timestampMs,
+                    price = price,
+                    dayVolume =
+                        dayVolume?.takeIf {
+                            it.isFinite()
+                        }
+                )
             )
-        )
+
+        } catch (
+            error: Exception
+        ) {
+
+            errorListener?.invoke(
+                error
+            )
+        }
     }
 
     fun disconnect() {
 
-        socket?.sendClose(
-            WebSocket.NORMAL_CLOSURE,
-            "client_shutdown"
+        webSocket?.close(
+            1000,
+            "Cliente encerrado"
         )
 
-        socket = null
+        webSocket = null
     }
+
+    fun isConnected(): Boolean =
+        webSocket != null
 }
