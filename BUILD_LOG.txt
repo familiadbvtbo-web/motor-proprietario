@@ -1,0 +1,1 @@
+BLOCKED: Gradle CLI não disponível neste ambiente.
