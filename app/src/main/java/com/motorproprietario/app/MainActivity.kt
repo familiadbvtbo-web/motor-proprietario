@@ -1,11 +1,13 @@
 package com.motorproprietario.app
 
+import android.app.AlertDialog
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
+import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import kotlin.concurrent.thread
@@ -18,34 +20,61 @@ class MainActivity : AppCompatActivity() {
     private lateinit var statusView: TextView
     private lateinit var assetView: TextView
     private lateinit var priceView: TextView
-    private lateinit var analysisView: TextView
+    private lateinit var resultView: TextView
+    private lateinit var probabilityView: TextView
+    private lateinit var bestTimeframeView: TextView
+    private lateinit var operationView: TextView
+    private lateinit var entryView: TextView
+    private lateinit var stopView: TextView
+    private lateinit var targetsView: TextView
+    private lateinit var timingView: TextView
+    private lateinit var analysisButton: Button
 
     private lateinit var assetSpinner: Spinner
     private lateinit var timeframeSpinner: Spinner
     private lateinit var horizonSpinner: Spinner
 
-    private val handler = Handler(Looper.getMainLooper())
+    private val handler =
+        Handler(Looper.getMainLooper())
 
-    private val quoteClient = TwelveDataClient()
-    private val candleClient = TwelveDataCandleClient()
+    private val quoteClient =
+        TwelveDataClient()
+
+    private val candleClient =
+        TwelveDataCandleClient()
 
     private val calibrationRuntime by lazy {
-        CalibrationRuntime(applicationContext)
+        CalibrationRuntime(
+            applicationContext
+        )
     }
 
-    private var selectedAsset = "EUR/USD"
-    private var selectedTimeframe = "M15"
-    private var selectedHorizon = "GERAL"
+    private var selectedAsset =
+        "EUR/USD"
 
-    private var lastQuote: RealTimeQuote? = null
-    private var analyzing = false
-    private var sequenceStage = SequenceStage.S0
+    private var selectedTimeframe =
+        "M15"
+
+    private var selectedHorizon =
+        "GERAL"
+
+    private var lastQuote:
+        RealTimeQuote? = null
+
+    private var analyzing =
+        false
+
+    private var sequenceStage =
+        SequenceStage.S0
 
     private var latestDetailedAnalysis =
         "Aguardando dados reais..."
 
     private val candleCache =
-        LinkedHashMap<String, List<MarketCandle>>()
+        LinkedHashMap<
+            String,
+            List<MarketCandle>
+        >()
 
     private val lastCandleUpdate =
         HashMap<String, Long>()
@@ -61,12 +90,17 @@ class MainActivity : AppCompatActivity() {
             "D1" to 86_400_000L
         )
 
-    private var candleApiBackoffUntil = 0L
-    private val candleApiBackoffMs = 65_000L
+    private var candleApiBackoffUntil =
+        0L
+
+    private val candleApiBackoffMs =
+        65_000L
 
     private val refreshTask =
         object : Runnable {
+
             override fun run() {
+
                 analyzeMarket()
 
                 handler.postDelayed(
@@ -75,8 +109,6 @@ class MainActivity : AppCompatActivity() {
                 )
             }
         }
-
-    private lateinit var bestTimeframeViewRef: TextView
 
     private fun dp(
         value: Int
@@ -114,20 +146,59 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun divider(): TextView =
-        text(
-            "────────────────────────",
-            10f
-        )
+    private fun sectionTitle(
+        value: String
+    ): TextView {
 
-    private fun section(
-        title: String
-    ): TextView =
-        text(
-            title,
+        return text(
+            value,
             14f,
             true
-        )
+        ).apply {
+
+            setTextColor(
+                Color.rgb(
+                    190,
+                    190,
+                    190
+                )
+            )
+
+            setPadding(
+                dp(8),
+                dp(12),
+                dp(8),
+                dp(4)
+            )
+        }
+    }
+
+    private fun divider(): View {
+
+        return View(this).apply {
+
+            setBackgroundColor(
+                Color.rgb(
+                    70,
+                    70,
+                    70
+                )
+            )
+
+            layoutParams =
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(1)
+                ).apply {
+
+                    topMargin =
+                        dp(6)
+
+                    bottomMargin =
+                        dp(6)
+                }
+        }
+    }
 
     override fun onCreate(
         savedInstanceState: Bundle?
@@ -138,6 +209,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         buildInterface()
+
         connectRealtime()
 
         handler.post(
@@ -183,19 +255,26 @@ class MainActivity : AppCompatActivity() {
 
         val subtitle =
             text(
-                "PROBABILIDADE + DETERMINISMO",
-                14f,
-                true
+                "ANÁLISE DE MERCADO EM TEMPO REAL",
+                13f,
+                false
             )
 
         subtitle.gravity =
             Gravity.CENTER_HORIZONTAL
 
-        root.addView(subtitle)
-        root.addView(divider())
+        root.addView(
+            subtitle
+        )
 
         root.addView(
-            section("ATIVO")
+            divider()
+        )
+
+        root.addView(
+            sectionTitle(
+                "ATIVO"
+            )
         )
 
         assetSpinner =
@@ -244,7 +323,7 @@ class MainActivity : AppCompatActivity() {
 
                     if (
                         newAsset ==
-                        selectedAsset
+                            selectedAsset
                     ) {
                         return
                     }
@@ -253,12 +332,14 @@ class MainActivity : AppCompatActivity() {
                         newAsset
 
                     resetForNewAsset()
+
                     connectRealtime()
                 }
 
                 override fun onNothingSelected(
                     parent: AdapterView<*>?
-                ) {}
+                ) {
+                }
             }
 
         root.addView(
@@ -266,7 +347,9 @@ class MainActivity : AppCompatActivity() {
         )
 
         root.addView(
-            section("TIMEFRAME ESCOLHIDO")
+            sectionTitle(
+                "TIMEFRAME ESCOLHIDO"
+            )
         )
 
         timeframeSpinner =
@@ -315,7 +398,8 @@ class MainActivity : AppCompatActivity() {
 
                 override fun onNothingSelected(
                     parent: AdapterView<*>?
-                ) {}
+                ) {
+                }
             }
 
         root.addView(
@@ -323,7 +407,9 @@ class MainActivity : AppCompatActivity() {
         )
 
         root.addView(
-            section("VISÃO TEMPORAL")
+            sectionTitle(
+                "VISÃO TEMPORAL"
+            )
         )
 
         horizonSpinner =
@@ -365,17 +451,22 @@ class MainActivity : AppCompatActivity() {
 
                 override fun onNothingSelected(
                     parent: AdapterView<*>?
-                ) {}
+                ) {
+                }
             }
 
         root.addView(
             horizonSpinner
         )
 
-        root.addView(divider())
+        root.addView(
+            divider()
+        )
 
         root.addView(
-            section("MERCADO")
+            sectionTitle(
+                "MERCADO"
+            )
         )
 
         assetView =
@@ -407,15 +498,17 @@ class MainActivity : AppCompatActivity() {
             statusView
         )
 
-        root.addView(divider())
+        root.addView(
+            divider()
+        )
 
         root.addView(
-            section(
+            sectionTitle(
                 "MELHOR TIMEFRAME DO MOTOR"
             )
         )
 
-        val bestTimeframePreview =
+        bestTimeframeView =
             text(
                 "Aguardando análise...",
                 20f,
@@ -423,35 +516,122 @@ class MainActivity : AppCompatActivity() {
             )
 
         root.addView(
-            bestTimeframePreview
+            bestTimeframeView
         )
 
-        root.addView(divider())
+        root.addView(
+            divider()
+        )
 
         root.addView(
-            section(
-                "RESULTADO OPERACIONAL"
+            sectionTitle(
+                "RESULTADO FINAL"
             )
         )
 
-        analysisView =
+        resultView =
             text(
-                "Aguardando dados reais...",
-                17f,
+                "⚪ AGUARDAR",
+                28f,
+                true
+            ).apply {
+
+                gravity =
+                    Gravity.CENTER
+
+                setPadding(
+                    dp(8),
+                    dp(18),
+                    dp(8),
+                    dp(18)
+                )
+            }
+
+        root.addView(
+            resultView
+        )
+
+        probabilityView =
+            text(
+                "COMPRA ---%   VENDA ---%   NEUTRO ---%",
+                15f,
+                true
+            ).apply {
+
+                gravity =
+                    Gravity.CENTER
+            }
+
+        root.addView(
+            probabilityView
+        )
+
+        operationView =
+            text(
+                "AGUARDANDO DADOS...",
+                18f,
                 true
             )
 
         root.addView(
-            analysisView
+            operationView
         )
 
-        root.addView(divider())
+        root.addView(
+            divider()
+        )
 
-        val detailsButton =
+        root.addView(
+            sectionTitle(
+                "PLANO OPERACIONAL"
+            )
+        )
+
+        entryView =
+            text(
+                "Entrada: --"
+            )
+
+        root.addView(
+            entryView
+        )
+
+        stopView =
+            text(
+                "Stop: --"
+            )
+
+        root.addView(
+            stopView
+        )
+
+        targetsView =
+            text(
+                "TP1: --\nTP2: --\nTP3: --\nR:R: --"
+            )
+
+        root.addView(
+            targetsView
+        )
+
+        timingView =
+            text(
+                "Timing: --\nValidade: --"
+            )
+
+        root.addView(
+            timingView
+        )
+
+        root.addView(
+            divider()
+        )
+
+        analysisButton =
             Button(this).apply {
 
                 text =
-                    "ANÁLISE DETALHADA"
+                    "🔎 ANÁLISE DETALHADA"
 
                 setOnClickListener {
                     showDetailedAnalysis()
@@ -459,18 +639,18 @@ class MainActivity : AppCompatActivity() {
             }
 
         root.addView(
-            detailsButton
+            analysisButton
         )
 
         val scroll =
             ScrollView(this).apply {
+
                 addView(root)
             }
 
-        setContentView(scroll)
-
-        bestTimeframeViewRef =
-            bestTimeframePreview
+        setContentView(
+            scroll
+        )
     }
 
     private fun resetForNewAsset() {
@@ -497,14 +677,38 @@ class MainActivity : AppCompatActivity() {
         latestDetailedAnalysis =
             "Aguardando dados reais..."
 
-        analysisView.text =
+        assetView.text =
+            selectedAsset
+
+        priceView.text =
+            "Preço: aguardando..."
+
+        bestTimeframeView.text =
+            "Aguardando análise..."
+
+        resultView.text =
+            "⚪ AGUARDAR"
+
+        probabilityView.text =
+            "COMPRA ---%   VENDA ---%   NEUTRO ---%"
+
+        operationView.text =
             "CARREGANDO $selectedAsset..."
+
+        entryView.text =
+            "Entrada: --"
+
+        stopView.text =
+            "Stop: --"
+
+        targetsView.text =
+            "TP1: --\nTP2: --\nTP3: --\nR:R: --"
+
+        timingView.text =
+            "Timing: --\nValidade: --"
 
         statusView.text =
             "CONECTANDO..."
-
-        bestTimeframeViewRef.text =
-            "Aguardando análise..."
     }
 
     private fun connectRealtime() {
@@ -537,14 +741,14 @@ class MainActivity : AppCompatActivity() {
                     statusView.text =
                         if (
                             System.currentTimeMillis() <
-                            candleApiBackoffUntil
+                                candleApiBackoffUntil
                         ) {
 
                             "● ONLINE • TWELVE DATA • CANDLES EM CACHE"
 
                         } else {
 
-                            "● ONLINE • DADOS REAIS • WEBSOCKET ATIVO"
+                            "● ONLINE • TWELVE DATA • TEMPO REAL"
                         }
                 }
             },
@@ -563,6 +767,7 @@ class MainActivity : AppCompatActivity() {
             }
         )
     }
+
     private fun analyzeMarket() {
 
         if (analyzing) {
@@ -570,9 +775,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         val quote =
-            lastQuote ?: return
+            lastQuote
+                ?: return
 
-        analyzing = true
+        analyzing =
+            true
 
         thread {
 
@@ -581,7 +788,9 @@ class MainActivity : AppCompatActivity() {
                 val now =
                     System.currentTimeMillis()
 
-                updateCandles(now)
+                updateCandles(
+                    now
+                )
 
                 val candles =
                     LinkedHashMap<
@@ -589,14 +798,22 @@ class MainActivity : AppCompatActivity() {
                         List<MarketCandle>
                     >()
 
-                synchronized(candleCache) {
-                    candles.putAll(candleCache)
+                synchronized(
+                    candleCache
+                ) {
+
+                    candles.putAll(
+                        candleCache
+                    )
                 }
 
-                if (candles.isEmpty()) {
+                if (
+                    candles.isEmpty()
+                ) {
 
                     runOnUiThread {
-                        analysisView.text =
+
+                        operationView.text =
                             "AGUARDANDO CANDLES REAIS..."
                     }
 
@@ -632,7 +849,9 @@ class MainActivity : AppCompatActivity() {
                     realtime.metrics[
                         selectedTimeframe
                     ]
-                        ?: realtime.metrics["M15"]
+                        ?: realtime.metrics[
+                            "M15"
+                        ]
                         ?: realtime.metrics.values.first()
 
                 val higherMetrics =
@@ -937,18 +1156,23 @@ class MainActivity : AppCompatActivity() {
                     latestDetailedAnalysis =
                         detailed
 
-                    bestTimeframeViewRef.text =
-                        "⭐ $bestTimeframe"
+                    updateMainScreen(
 
-                    analysisView.text =
-                        buildMainResult(
+                        realtime =
+                            realtime,
 
+                        finalProbabilities =
                             bestFinal,
 
+                        direction =
                             bestDirection,
 
+                        bestTimeframe =
+                            bestTimeframe,
+
+                        entryPlan =
                             entryPlan
-                        )
+                    )
                 }
 
             } catch (
@@ -957,7 +1181,7 @@ class MainActivity : AppCompatActivity() {
 
                 runOnUiThread {
 
-                    analysisView.text =
+                    operationView.text =
                         "ERRO NA ANÁLISE\n\n" +
                         (
                             error.message
@@ -967,30 +1191,37 @@ class MainActivity : AppCompatActivity() {
 
             } finally {
 
-                analyzing = false
+                analyzing =
+                    false
             }
         }
     }
 
-    private fun buildMainResult(
-        final:
+    private fun updateMainScreen(
+        realtime:
+            RealtimeAnalysis,
+
+        finalProbabilities:
             Triple<Double, Double, Double>,
 
         direction:
             String,
 
+        bestTimeframe:
+            String,
+
         entryPlan:
             EntryPlanResult
-    ): String {
+    ) {
 
         val buy =
-            final.first
+            finalProbabilities.first
 
         val sell =
-            final.second
+            finalProbabilities.second
 
         val neutral =
-            final.third
+            finalProbabilities.third
 
         val total =
             when (direction) {
@@ -1005,126 +1236,220 @@ class MainActivity : AppCompatActivity() {
                     neutral
             }
 
-        return buildString {
+        bestTimeframeView.text =
+            "⭐ $bestTimeframe"
 
-            append(
-                when (direction) {
+        probabilityView.text =
+            "COMPRA ${
+                "%.1f".format(
+                    buy
+                )
+            }%   •   VENDA ${
+                "%.1f".format(
+                    sell
+                )
+            }%   •   NEUTRO ${
+                "%.1f".format(
+                    neutral
+                )
+            }%"
 
-                    "COMPRA" ->
-                        "🟢 COMPRA"
+        resultView.text =
+            when (direction) {
 
-                    "VENDA" ->
-                        "🔴 VENDA"
+                "COMPRA" ->
+                    "🟢 COMPRA\n${
+                        "%.1f".format(
+                            total
+                        )
+                    }%"
 
-                    else ->
-                        "⚪ AGUARDAR"
+                "VENDA" ->
+                    "🔴 VENDA\n${
+                        "%.1f".format(
+                            total
+                        )
+                    }%"
+
+                else ->
+                    "⚪ AGUARDAR\n${
+                        "%.1f".format(
+                            total
+                        )
+                    }%"
+            }
+
+        if (
+            direction ==
+                "NEUTRO" ||
+            !entryPlan.valid
+        ) {
+
+            operationView.text =
+                "AGUARDAR — SEM DIREÇÃO OPERACIONAL"
+
+            entryView.text =
+                "Entrada: não disponível"
+
+            stopView.text =
+                "Stop: não disponível"
+
+            targetsView.text =
+                "TP1: não disponível\n" +
+                "TP2: não disponível\n" +
+                "TP3: não disponível\n" +
+                "R:R: não disponível"
+
+            timingView.text =
+                "Timing: aguardar confirmação\n" +
+                "Validade: --"
+
+        } else {
+
+            operationView.text =
+                if (
+                    direction ==
+                        "COMPRA"
+                ) {
+                    "🟢 ENTRADA DE COMPRA"
+                } else {
+                    "🔴 ENTRADA DE VENDA"
                 }
-            )
 
-            append(
-                "\nTOTAL: ${
-                    "%.1f".format(total)
-                }%\n\n"
-            )
+            entryView.text =
+                "Entrada: ${
+                    "%.5f".format(
+                        entryPlan.entry
+                    )
+                }\n" +
+                "Zona: ${
+                    "%.5f".format(
+                        entryPlan.zoneLow
+                    )
+                } – ${
+                    "%.5f".format(
+                        entryPlan.zoneHigh
+                    )
+                }"
 
-            append(
-                "COMPRA: ${
-                    "%.1f".format(buy)
-                }%\n"
-            )
+            stopView.text =
+                "Stop: ${
+                    "%.5f".format(
+                        entryPlan.stop
+                    )
+                }"
 
-            append(
-                "VENDA: ${
-                    "%.1f".format(sell)
-                }%\n"
-            )
+            targetsView.text =
+                "TP1: ${
+                    "%.5f".format(
+                        entryPlan.tp1
+                    )
+                }   R:R 1:${entryPlan.rr1}\n" +
+                "TP2: ${
+                    "%.5f".format(
+                        entryPlan.tp2
+                    )
+                }   R:R 1:${entryPlan.rr2}\n" +
+                "TP3: ${
+                    "%.5f".format(
+                        entryPlan.tp3
+                    )
+                }   R:R 1:${entryPlan.rr3}"
 
-            append(
-                "NEUTRO: ${
-                    "%.1f".format(neutral)
-                }%\n\n"
-            )
+            timingView.text =
+                "Timing: ${
+                    entryPlan.timing
+                }\n" +
+                "Validade: ${
+                    entryPlan.validityMinutes
+                } minutos\n" +
+                "Expira: ${
+                    formatExpiry(
+                        entryPlan.expiresAt
+                    )
+                }"
+        }
 
+        statusView.text =
             if (
-                direction ==
-                    "NEUTRO" ||
-                !entryPlan.valid
+                System.currentTimeMillis() <
+                    candleApiBackoffUntil
             ) {
 
-                append(
-                    "STATUS: AGUARDAR\n"
-                )
-
-                append(
-                    "Sem entrada operacional válida."
-                )
+                "● ONLINE • CANDLES EM CACHE"
 
             } else {
 
-                append(
-                    "ENTRADA: ${
-                        "%.5f".format(
-                            entryPlan.entry
-                        )
-                    }\n"
-                )
-
-                append(
-                    "STOP: ${
-                        "%.5f".format(
-                            entryPlan.stop
-                        )
-                    }\n"
-                )
-
-                append(
-                    "TP1: ${
-                        "%.5f".format(
-                            entryPlan.tp1
-                        )
-                    } • R:R 1:${entryPlan.rr1}\n"
-                )
-
-                append(
-                    "TP2: ${
-                        "%.5f".format(
-                            entryPlan.tp2
-                        )
-                    } • R:R 1:${entryPlan.rr2}\n"
-                )
-
-                append(
-                    "TP3: ${
-                        "%.5f".format(
-                            entryPlan.tp3
-                        )
-                    } • R:R 1:${entryPlan.rr3}\n"
-                )
-
-                append(
-                    "TIMING: ${
-                        entryPlan.timing
-                    }\n"
-                )
-
-                append(
-                    "VALIDADE: ${
-                        entryPlan.validityMinutes
-                    } min"
-                )
+                "● ONLINE • DADOS REAIS • WEBSOCKET ATIVO"
             }
-        }
     }
 
     private fun showDetailedAnalysis() {
 
+        val content =
+            LinearLayout(this).apply {
+
+                orientation =
+                    LinearLayout.VERTICAL
+
+                setPadding(
+                    dp(16),
+                    dp(8),
+                    dp(16),
+                    dp(8)
+                )
+
+                setBackgroundColor(
+                    Color.rgb(
+                        18,
+                        15,
+                        22
+                    )
+                )
+            }
+
+        val detailedText =
+            TextView(this).apply {
+
+                text =
+                    latestDetailedAnalysis
+
+                textSize =
+                    14f
+
+                setTextColor(
+                    Color.WHITE
+                )
+
+                setPadding(
+                    dp(4),
+                    dp(4),
+                    dp(4),
+                    dp(20)
+                )
+            }
+
+        content.addView(
+            detailedText
+        )
+
+        val scroll =
+            ScrollView(this).apply {
+
+                addView(
+                    content
+                )
+            }
+
         val dialog =
-            android.app.AlertDialog.Builder(this)
+            AlertDialog.Builder(
+                this
+            )
                 .setTitle(
                     "ANÁLISE DETALHADA"
                 )
-                .setMessage(
-                    latestDetailedAnalysis
+                .setView(
+                    scroll
                 )
                 .setPositiveButton(
                     "FECHAR",
@@ -1164,12 +1489,14 @@ class MainActivity : AppCompatActivity() {
             val interval =
                 candleIntervals[
                     timeframe
-                ] ?: 60_000L
+                ]
+                    ?: 60_000L
 
             val last =
                 lastCandleUpdate[
                     timeframe
-                ] ?: 0L
+                ]
+                    ?: 0L
 
             val cached =
                 candleCache[
@@ -1228,7 +1555,8 @@ class MainActivity : AppCompatActivity() {
             ) {
 
                 val message =
-                    error.message ?: ""
+                    error.message
+                        ?: ""
 
                 if (
                     message.contains(
@@ -1251,6 +1579,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
     private fun combineFinalProbabilities(
         probability:
             ProbabilityResult,
@@ -1265,6 +1595,16 @@ class MainActivity : AppCompatActivity() {
             Double
     ): Triple<Double, Double, Double> {
 
+        /*
+         * Os pesos vêm do CalibrationRuntime.
+         *
+         * Sem calibração aceita:
+         * 50% probabilidade
+         * 50% determinismo
+         *
+         * Com calibração aceita:
+         * utiliza os pesos persistidos.
+         */
         val weights =
             calibrationRuntime.weights()
 
@@ -1334,9 +1674,15 @@ class MainActivity : AppCompatActivity() {
                 0.20
 
         val total =
-            buy.coerceAtLeast(0.0) +
-            sell.coerceAtLeast(0.0) +
-            neutral.coerceAtLeast(0.0)
+            buy.coerceAtLeast(
+                0.0
+            ) +
+            sell.coerceAtLeast(
+                0.0
+            ) +
+            neutral.coerceAtLeast(
+                0.0
+            )
 
         if (
             total <= 0.0
@@ -1437,7 +1783,8 @@ class MainActivity : AppCompatActivity() {
             val metrics =
                 realtime.metrics[
                     timeframe
-                ] ?: continue
+                ]
+                    ?: continue
 
             val higher =
                 realtime.metrics
@@ -1577,8 +1924,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun timeframeRank(
-        timeframe:
-            String
+        timeframe: String
     ): Int =
         when (
             timeframe
@@ -1729,6 +2075,8 @@ class MainActivity : AppCompatActivity() {
                 42.0
             }
         }
+    }
+
     private fun buildDetailedAnalysis(
         realtime:
             RealtimeAnalysis,
@@ -1770,22 +2118,154 @@ class MainActivity : AppCompatActivity() {
         val neutral =
             finalProbabilities.third
 
+        val finalTotal =
+            when (
+                direction
+            ) {
+
+                "COMPRA" ->
+                    buy
+
+                "VENDA" ->
+                    sell
+
+                else ->
+                    neutral
+            }
+
         val calibrationWeights =
             calibrationRuntime.weights()
+
+        val probabilityWeight =
+            calibrationWeights.first *
+                100.0
+
+        val deterministicWeight =
+            calibrationWeights.second *
+                100.0
 
         val calibrationStatus =
             if (
                 calibrationRuntime.isCalibrated()
             ) {
+
                 "HISTÓRICO ATIVO"
+
             } else {
+
                 "PADRÃO 50/50"
+            }
+
+        val confidence =
+            (
+                max(
+                    buy,
+                    sell
+                ) -
+                    neutral
+            ).coerceIn(
+                0.0,
+                100.0
+            )
+
+        val deterministicLevel =
+            when {
+
+                deterministic.confidence >=
+                    80.0 ->
+                    "MUITO FORTE"
+
+                deterministic.confidence >=
+                    65.0 ->
+                    "FORTE"
+
+                deterministic.confidence >=
+                    50.0 ->
+                    "MODERADO"
+
+                else ->
+                    "FRACO"
+            }
+
+        val trapLevel =
+            when {
+
+                deterministic.trapRisk >=
+                    70.0 ->
+                    "ALTA"
+
+                deterministic.trapRisk >=
+                    50.0 ->
+                    "MODERADA"
+
+                else ->
+                    "BAIXA"
+            }
+
+        val expansionLevel =
+            when {
+
+                deterministic.expansion >=
+                    70.0 ->
+                    "CONFIRMADA"
+
+                deterministic.expansion >=
+                    50.0 ->
+                    "EM FORMAÇÃO"
+
+                else ->
+                    "NÃO CONFIRMADA"
+            }
+
+        val accumulationLevel =
+            when {
+
+                deterministic.accumulation >=
+                    70.0 ->
+                    "DETECTADA"
+
+                deterministic.accumulation >=
+                    50.0 ->
+                    "POSSÍVEL"
+
+                else ->
+                    "NÃO DETECTADA"
+            }
+
+        val distributionLevel =
+            when {
+
+                deterministic.distribution >=
+                    70.0 ->
+                    "DETECTADA"
+
+                deterministic.distribution >=
+                    50.0 ->
+                    "POSSÍVEL"
+
+                else ->
+                    "NÃO DETECTADA"
+            }
+
+        val realizationLevel =
+            when {
+
+                deterministic.realizationRisk >=
+                    70.0 ->
+                    "ALTO"
+
+                deterministic.realizationRisk >=
+                    50.0 ->
+                    "MODERADO"
+
+                else ->
+                    "BAIXO"
             }
 
         return buildString {
 
             append(
-                "MOTOR PROPRIETÁRIO\n\n"
+                "MOTOR PROPRIETÁRIO\n"
             )
 
             append(
@@ -1805,33 +2285,77 @@ class MainActivity : AppCompatActivity() {
             )
 
             append(
-                "RESULTADO FINAL\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "RESULTADO FINAL\n\n"
+            )
+
+            append(
+                "DIREÇÃO: ${
+                    when (
+                        direction
+                    ) {
+
+                        "COMPRA" ->
+                            "COMPRA"
+
+                        "VENDA" ->
+                            "VENDA"
+
+                        else ->
+                            "NEUTRO / AGUARDAR"
+                    }
+                }\n"
+            )
+
+            append(
+                "TOTAL: ${
+                    "%.1f".format(
+                        finalTotal
+                    )
+                }%\n"
             )
 
             append(
                 "COMPRA: ${
-                    "%.1f".format(buy)
+                    "%.1f".format(
+                        buy
+                    )
                 }%\n"
             )
 
             append(
                 "VENDA: ${
-                    "%.1f".format(sell)
+                    "%.1f".format(
+                        sell
+                    )
                 }%\n"
             )
 
             append(
                 "NEUTRO: ${
-                    "%.1f".format(neutral)
+                    "%.1f".format(
+                        neutral
+                    )
                 }%\n"
             )
 
             append(
-                "DIREÇÃO: $direction\n\n"
+                "CONFIANÇA RELATIVA: ${
+                    "%.1f".format(
+                        confidence
+                    )
+                }%\n\n"
             )
 
             append(
-                "CALIBRAÇÃO\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "CALIBRAÇÃO\n\n"
             )
 
             append(
@@ -1841,7 +2365,7 @@ class MainActivity : AppCompatActivity() {
             append(
                 "PROBABILIDADE: ${
                     "%.1f".format(
-                        calibrationWeights.first * 100.0
+                        probabilityWeight
                     )
                 }%\n"
             )
@@ -1849,13 +2373,25 @@ class MainActivity : AppCompatActivity() {
             append(
                 "DETERMINISMO: ${
                     "%.1f".format(
-                        calibrationWeights.second * 100.0
+                        deterministicWeight
                     )
                 }%\n\n"
             )
 
             append(
-                "PROBABILIDADE ORIGINAL\n"
+                "Os pesos acima são os pesos atualmente\n"
+            )
+
+            append(
+                "retornados pelo CalibrationRuntime.\n\n"
+            )
+
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "COMPOSIÇÃO PROBABILÍSTICA\n\n"
             )
 
             append(
@@ -1889,7 +2425,11 @@ class MainActivity : AppCompatActivity() {
             )
 
             append(
-                "DETERMINISMO\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "DETERMINISMO\n\n"
             )
 
             append(
@@ -1901,35 +2441,23 @@ class MainActivity : AppCompatActivity() {
             )
 
             append(
-                "ARMADILHA: ${
-                    "%.1f".format(
-                        deterministic.trapRisk
-                    )
-                }%\n"
+                "NÍVEL: $deterministicLevel\n"
             )
 
             append(
-                "EXPANSÃO: ${
-                    "%.1f".format(
-                        deterministic.expansion
-                    )
-                }%\n"
+                "ARMADILHA: $trapLevel\n"
             )
 
             append(
-                "ACUMULAÇÃO: ${
-                    "%.1f".format(
-                        deterministic.accumulation
-                    )
-                }%\n"
+                "EXPANSÃO: $expansionLevel\n"
             )
 
             append(
-                "DISTRIBUIÇÃO: ${
-                    "%.1f".format(
-                        deterministic.distribution
-                    )
-                }%\n"
+                "ACUMULAÇÃO: $accumulationLevel\n"
+            )
+
+            append(
+                "DISTRIBUIÇÃO: $distributionLevel\n"
             )
 
             append(
@@ -1949,11 +2477,7 @@ class MainActivity : AppCompatActivity() {
             )
 
             append(
-                "REALIZAÇÃO: ${
-                    "%.1f".format(
-                        deterministic.realizationRisk
-                    )
-                }%\n"
+                "REALIZAÇÃO: $realizationLevel\n"
             )
 
             append(
@@ -1973,7 +2497,11 @@ class MainActivity : AppCompatActivity() {
             )
 
             append(
-                "CONFLUÊNCIA MTF\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "CONFLUÊNCIA MTF / RISCO\n\n"
             )
 
             append(
@@ -2007,12 +2535,22 @@ class MainActivity : AppCompatActivity() {
             )
 
             append(
-                "INDICADORES DO MELHOR TIMEFRAME\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "MELHOR TIMEFRAME\n\n"
+            )
+
+            append(
+                "$bestTimeframe\n\n"
             )
 
             append(
                 "TENDÊNCIA: ${
-                    metricDirection(metrics)
+                    metricDirection(
+                        metrics
+                    )
                 }\n"
             )
 
@@ -2097,101 +2635,120 @@ class MainActivity : AppCompatActivity() {
             )
 
             append(
-                "PLANO OPERACIONAL\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
             )
 
             append(
-                "STATUS: ${
-                    if (
-                        entryPlan.valid
-                    ) {
-                        "ENTRADA VÁLIDA"
-                    } else {
-                        "AGUARDAR"
-                    }
-                }\n"
+                "PLANO OPERACIONAL\n\n"
+            )
+
+            if (
+                direction ==
+                    "NEUTRO" ||
+                !entryPlan.valid
+            ) {
+
+                append(
+                    "STATUS: AGUARDAR\n"
+                )
+
+                append(
+                    "Motivo: ${
+                        entryPlan.reason
+                    }\n\n"
+                )
+
+            } else {
+
+                append(
+                    "STATUS: ENTRADA VÁLIDA\n"
+                )
+
+                append(
+                    "TIMING: ${
+                        entryPlan.timing
+                    }\n"
+                )
+
+                append(
+                    "ENTRADA: ${
+                        "%.5f".format(
+                            entryPlan.entry
+                        )
+                    }\n"
+                )
+
+                append(
+                    "ZONA: ${
+                        "%.5f".format(
+                            entryPlan.zoneLow
+                        )
+                    } – ${
+                        "%.5f".format(
+                            entryPlan.zoneHigh
+                        )
+                    }\n"
+                )
+
+                append(
+                    "STOP: ${
+                        "%.5f".format(
+                            entryPlan.stop
+                        )
+                    }\n"
+                )
+
+                append(
+                    "TP1: ${
+                        "%.5f".format(
+                            entryPlan.tp1
+                        )
+                    }  R:R 1:${entryPlan.rr1}\n"
+                )
+
+                append(
+                    "TP2: ${
+                        "%.5f".format(
+                            entryPlan.tp2
+                        )
+                    }  R:R 1:${entryPlan.rr2}\n"
+                )
+
+                append(
+                    "TP3: ${
+                        "%.5f".format(
+                            entryPlan.tp3
+                        )
+                    }  R:R 1:${entryPlan.rr3}\n"
+                )
+
+                append(
+                    "VALIDADE: ${
+                        entryPlan.validityMinutes
+                    } minutos\n"
+                )
+
+                append(
+                    "EXPIRA EM: ${
+                        formatExpiry(
+                            entryPlan.expiresAt
+                        )
+                    }\n"
+                )
+
+                append(
+                    "MOTIVO: ${
+                        entryPlan.reason
+                    }\n\n"
+                )
+            }
+
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
             )
 
             append(
-                "TIMING: ${
-                    entryPlan.timing
-                }\n"
-            )
-
-            append(
-                "ENTRADA: ${
-                    "%.5f".format(
-                        entryPlan.entry
-                    )
-                }\n"
-            )
-
-            append(
-                "ZONA: ${
-                    "%.5f".format(
-                        entryPlan.zoneLow
-                    )
-                } – ${
-                    "%.5f".format(
-                        entryPlan.zoneHigh
-                    )
-                }\n"
-            )
-
-            append(
-                "STOP: ${
-                    "%.5f".format(
-                        entryPlan.stop
-                    )
-                }\n"
-            )
-
-            append(
-                "TP1: ${
-                    "%.5f".format(
-                        entryPlan.tp1
-                    )
-                } • R:R 1:${entryPlan.rr1}\n"
-            )
-
-            append(
-                "TP2: ${
-                    "%.5f".format(
-                        entryPlan.tp2
-                    )
-                } • R:R 1:${entryPlan.rr2}\n"
-            )
-
-            append(
-                "TP3: ${
-                    "%.5f".format(
-                        entryPlan.tp3
-                    )
-                } • R:R 1:${entryPlan.rr3}\n"
-            )
-
-            append(
-                "VALIDADE: ${
-                    entryPlan.validityMinutes
-                } minutos\n"
-            )
-
-            append(
-                "EXPIRA EM: ${
-                    formatExpiry(
-                        entryPlan.expiresAt
-                    )
-                }\n"
-            )
-
-            append(
-                "MOTIVO: ${
-                    entryPlan.reason
-                }\n\n"
-            )
-
-            append(
-                "SEQUÊNCIA\n"
+                "SEQUÊNCIA\n\n"
             )
 
             append(
@@ -2213,7 +2770,11 @@ class MainActivity : AppCompatActivity() {
             )
 
             append(
-                "DADOS\n"
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "DADOS DE MERCADO\n\n"
             )
 
             append(
@@ -2247,7 +2808,11 @@ class MainActivity : AppCompatActivity() {
             )
 
             append(
-                "EXECUÇÃO DE ORDENS: DESATIVADA"
+                "EXECUÇÃO DE ORDENS: DESATIVADA\n"
+            )
+
+            append(
+                "\nATUALIZAÇÃO: CONTÍNUA"
             )
         }
     }
@@ -2260,9 +2825,11 @@ class MainActivity : AppCompatActivity() {
         val bullish =
             listOf(
 
-                metrics.trend >= 60.0,
+                metrics.trend >=
+                    60.0,
 
-                metrics.momentum >= 55.0,
+                metrics.momentum >=
+                    55.0,
 
                 metrics.ema9 >
                     metrics.ema21,
@@ -2270,11 +2837,14 @@ class MainActivity : AppCompatActivity() {
                 metrics.macd >
                     metrics.macdSignal,
 
-                metrics.structure >= 55.0,
+                metrics.structure >=
+                    55.0,
 
-                metrics.candlePattern >= 55.0,
+                metrics.candlePattern >=
+                    55.0,
 
-                metrics.breakout >= 55.0
+                metrics.breakout >=
+                    55.0
 
             ).count {
                 it
@@ -2283,9 +2853,11 @@ class MainActivity : AppCompatActivity() {
         val bearish =
             listOf(
 
-                metrics.trend <= 40.0,
+                metrics.trend <=
+                    40.0,
 
-                metrics.momentum <= 45.0,
+                metrics.momentum <=
+                    45.0,
 
                 metrics.ema9 <
                     metrics.ema21,
@@ -2293,11 +2865,14 @@ class MainActivity : AppCompatActivity() {
                 metrics.macd <
                     metrics.macdSignal,
 
-                metrics.structure <= 45.0,
+                metrics.structure <=
+                    45.0,
 
-                metrics.candlePattern <= 45.0,
+                metrics.candlePattern <=
+                    45.0,
 
-                metrics.breakout <= 45.0
+                metrics.breakout <=
+                    45.0
 
             ).count {
                 it
@@ -2322,9 +2897,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun formatExpiry(
-        timestamp:
-            Long
+        timestamp: Long
     ): String {
+
+        if (
+            timestamp <= 0L
+        ) {
+            return "--"
+        }
 
         val formatter =
             java.text.SimpleDateFormat(
@@ -2350,5 +2930,3 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
     }
 }
-
-    
