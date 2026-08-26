@@ -8,10 +8,20 @@ data class FinalMotorInput(
     val falseSignal: FalseSignalInput,
 
     /*
-     * Probabilidade calculada pelo motor.
-     * Opcional para preservar compatibilidade.
+     * Resultado do motor probabilístico.
      */
-    val probability: ProbabilityResult? = null
+    val probability: ProbabilityResult? = null,
+
+    /*
+     * Resultado do motor determinístico.
+     *
+     * Opcional nesta etapa para manter
+     * compatibilidade com o projeto atual.
+     */
+    val deterministicBuy: Double = 50.0,
+    val deterministicSell: Double = 50.0,
+    val deterministicNeutral: Double = 50.0,
+    val deterministicConfidence: Double = 50.0
 )
 
 data class FinalMotorResult(
@@ -21,7 +31,16 @@ data class FinalMotorResult(
     val sequence: SequenceResult,
     val decision: DecisionResult,
     val marketUsable: Boolean,
-    val probability: ProbabilityResult? = null
+    val probability: ProbabilityResult? = null,
+
+    /*
+     * Resultado determinístico utilizado
+     * na decisão final.
+     */
+    val deterministicBuy: Double = 50.0,
+    val deterministicSell: Double = 50.0,
+    val deterministicNeutral: Double = 50.0,
+    val deterministicConfidence: Double = 50.0
 )
 
 object FinalMotorEngine {
@@ -30,10 +49,22 @@ object FinalMotorEngine {
         input: FinalMotorInput
     ): FinalMotorResult {
 
+        /*
+         * ==================================
+         * 1. QUALIDADE DOS DADOS
+         * ==================================
+         */
+
         val marketUsable =
             input.market.isUsable(
                 input.now
             )
+
+        /*
+         * ==================================
+         * 2. FSI
+         * ==================================
+         */
 
         val fsi =
             FsiEngine.calculate(
@@ -60,10 +91,22 @@ object FinalMotorEngine {
                 )
             )
 
+        /*
+         * ==================================
+         * 3. FALSO SINAL
+         * ==================================
+         */
+
         val falseSignal =
             FalseSignalEngine.evaluate(
                 input.falseSignal
             )
+
+        /*
+         * ==================================
+         * 4. SCORE QUANTITATIVO
+         * ==================================
+         */
 
         val score =
             ScoreEngine.calculate(
@@ -84,7 +127,7 @@ object FinalMotorEngine {
                         input.market.volatility,
 
                     /*
-                     * Agora FSI é risco.
+                     * O FSI é risco.
                      */
                     fsi =
                         fsi.value,
@@ -94,53 +137,181 @@ object FinalMotorEngine {
                 )
             )
 
+        /*
+         * ==================================
+         * 5. SEQUÊNCIA
+         * ==================================
+         */
+
         val sequence =
             SequenceEngine.advance(
                 input.sequenceStage,
                 input.sequence
             )
 
+        /*
+         * ==================================
+         * 6. RISCO FINAL DE FALSO SINAL
+         * ==================================
+         *
+         * O maior valor entre FSI e o motor
+         * de falso sinal passa a proteger
+         * a decisão.
+         */
+
+        val falseSignalRisk =
+            maxOf(
+                fsi.value,
+                falseSignal.risk
+            )
+
+        /*
+         * ==================================
+         * 7. DECISÃO FINAL
+         * ==================================
+         */
+
         val decision =
-            if (
-                !marketUsable
-            ) {
+            when {
 
-                DecisionResult(
-                    decision = "AGUARDAR",
-                    reason = "MARKET_DATA_INVALID",
-                    executableInPaper = false
-                )
+                /*
+                 * Dados inválidos.
+                 */
+                !marketUsable -> {
 
-            } else if (
-                falseSignal.blocked
-            ) {
+                    DecisionResult(
+                        decision =
+                            "AGUARDAR",
 
-                DecisionResult(
-                    decision = "AGUARDAR",
-                    reason = "FALSE_SIGNAL_BLOCK",
-                    executableInPaper = false
-                )
+                        reason =
+                            "MARKET_DATA_INVALID",
 
-            } else {
+                        executableInPaper =
+                            false,
 
-                DecisionEngine.evaluate(
-                    DecisionInput(
-                        score =
-                            score.score,
-
-                        fsi =
-                            fsi,
-
-                        sequenceConfirmed =
-                            sequence.confirmed,
-
-                        probability =
+                        buyProbability =
                             input.probability
+                                ?.buyProbability
+                                ?: 0.0,
+
+                        sellProbability =
+                            input.probability
+                                ?.sellProbability
+                                ?: 0.0,
+
+                        neutralProbability =
+                            input.probability
+                                ?.neutralProbability
+                                ?: 100.0,
+
+                        deterministicConfidence =
+                            input.deterministicConfidence,
+
+                        falseSignalRisk =
+                            falseSignalRisk,
+
+                        mtfConfluence =
+                            input.market.multiTimeframe
                     )
-                )
+                }
+
+                /*
+                 * Falso sinal crítico.
+                 */
+                falseSignal.blocked ||
+                    fsi.blocked -> {
+
+                    DecisionResult(
+                        decision =
+                            "AGUARDAR",
+
+                        reason =
+                            "FALSE_SIGNAL_BLOCK",
+
+                        executableInPaper =
+                            false,
+
+                        buyProbability =
+                            input.probability
+                                ?.buyProbability
+                                ?: 0.0,
+
+                        sellProbability =
+                            input.probability
+                                ?.sellProbability
+                                ?: 0.0,
+
+                        neutralProbability =
+                            input.probability
+                                ?.neutralProbability
+                                ?: 100.0,
+
+                        deterministicConfidence =
+                            input.deterministicConfidence,
+
+                        falseSignalRisk =
+                            falseSignalRisk,
+
+                        mtfConfluence =
+                            input.market.multiTimeframe
+                    )
+                }
+
+                /*
+                 * Caso normal:
+                 *
+                 * Probabilidade +
+                 * Determinismo +
+                 * FSI +
+                 * MTF +
+                 * Sequência.
+                 */
+                else -> {
+
+                    DecisionEngine.evaluate(
+                        DecisionInput(
+                            score =
+                                score.score,
+
+                            fsi =
+                                fsi,
+
+                            sequenceConfirmed =
+                                sequence.confirmed,
+
+                            probability =
+                                input.probability,
+
+                            deterministicBuy =
+                                input.deterministicBuy,
+
+                            deterministicSell =
+                                input.deterministicSell,
+
+                            deterministicNeutral =
+                                input.deterministicNeutral,
+
+                            deterministicConfidence =
+                                input.deterministicConfidence,
+
+                            falseSignalRisk =
+                                falseSignalRisk,
+
+                            mtfConfluence =
+                                input.market.multiTimeframe
+                        )
+                    )
+                }
             }
 
+        /*
+         * ==================================
+         * 8. RESULTADO COMPLETO
+         * ==================================
+         */
+
         return FinalMotorResult(
+
             score =
                 score,
 
@@ -160,7 +331,19 @@ object FinalMotorEngine {
                 marketUsable,
 
             probability =
-                input.probability
+                input.probability,
+
+            deterministicBuy =
+                input.deterministicBuy,
+
+            deterministicSell =
+                input.deterministicSell,
+
+            deterministicNeutral =
+                input.deterministicNeutral,
+
+            deterministicConfidence =
+                input.deterministicConfidence
         )
     }
 }
