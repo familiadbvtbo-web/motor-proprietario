@@ -4,14 +4,6 @@ import kotlin.math.abs
 
 object BacktestEngine {
 
-    /**
-     * Executa o backtest de uma sequência de sinais
-     * históricos contra candles reais.
-     *
-     * O mecanismo não cria sinais.
-     * Ele apenas mede o que teria acontecido
-     * com sinais já fornecidos pelo Motor.
-     */
     fun evaluateSignals(
         signals: List<BacktestSignal>,
         candles: List<MarketCandle>,
@@ -22,10 +14,7 @@ object BacktestEngine {
             signals.isEmpty() ||
             candles.isEmpty()
         ) {
-
-            return emptyReport(
-                config
-            )
+            return emptyReport(config)
         }
 
         val orderedCandles =
@@ -41,30 +30,20 @@ object BacktestEngine {
         val results =
             mutableListOf<BacktestTradeResult>()
 
-        var openSignals =
-            0
+        var openSignals = 0
 
-        for (
-            signal in orderedSignals
-        ) {
+        for (signal in orderedSignals) {
 
             if (
-                signal.symbol !=
-                    config.symbol
-            ) {
-                continue
-            }
-
-            if (
-                signal.timeframe !=
-                    config.timeframe
+                signal.symbol != config.symbol ||
+                signal.timeframe != config.timeframe
             ) {
                 continue
             }
 
             if (
                 openSignals >=
-                    config.maxOpenSignals
+                config.maxOpenSignals
             ) {
                 continue
             }
@@ -78,38 +57,20 @@ object BacktestEngine {
 
             if (
                 result.outcome !=
-                    BacktestOutcome.NO_TRADE
+                BacktestOutcome.NO_TRADE
             ) {
-
-                results.add(
-                    result
-                )
-
-                openSignals =
-                    0
+                results.add(result)
+                openSignals = 0
             }
         }
 
-        val metrics =
-            calculateMetrics(
-                results
-            )
-
         return BacktestReport(
-            config =
-                config,
-
-            metrics =
-                metrics,
-
-            trades =
-                results
+            config = config,
+            metrics = calculateMetrics(results),
+            trades = results
         )
     }
 
-    /**
-     * Avalia um único sinal contra o histórico.
-     */
     private fun evaluateSingleSignal(
         signal: BacktestSignal,
         candles: List<MarketCandle>,
@@ -126,7 +87,6 @@ object BacktestEngine {
             entry <= 0.0 ||
             stop <= 0.0
         ) {
-
             return noTrade(
                 signal,
                 "PRECO_OU_STOP_INVALIDO"
@@ -135,15 +95,13 @@ object BacktestEngine {
 
         val risk =
             abs(
-                entry -
-                    stop
+                entry - stop
             )
 
         if (
             risk <= 0.0 ||
             !risk.isFinite()
         ) {
-
             return noTrade(
                 signal,
                 "RISCO_INVALIDO"
@@ -159,7 +117,6 @@ object BacktestEngine {
         if (
             startIndex < 0
         ) {
-
             return noTrade(
                 signal,
                 "SEM_CANDLE_APOS_SINAL"
@@ -199,14 +156,14 @@ object BacktestEngine {
 
             if (
                 candle.timestamp <
-                    signal.timestamp
+                signal.timestamp
             ) {
                 continue
             }
 
             if (
                 candle.timestamp >
-                    expiry
+                expiry
             ) {
                 break
             }
@@ -237,19 +194,6 @@ object BacktestEngine {
                     adverse
                 )
 
-            /*
-             * ==================================
-             * AMBIGUIDADE INTRACANDLE
-             * ==================================
-             *
-             * Se stop e alvo forem tocados no mesmo
-             * candle, não assumimos automaticamente
-             * que o alvo veio primeiro.
-             *
-             * A regra conservadora é considerar
-             * STOP primeiro.
-             */
-
             val stopHit =
                 stopHit(
                     signal,
@@ -277,202 +221,123 @@ object BacktestEngine {
                     signal.tp3
                 )
 
-            if (
-                tp1Hit
-            ) {
-                tp1Reached =
-                    true
+            if (tp1Hit) {
+                tp1Reached = true
             }
 
-            if (
-                tp2Hit
-            ) {
-                tp2Reached =
-                    true
+            if (tp2Hit) {
+                tp2Reached = true
             }
 
-            if (
-                tp3Hit
-            ) {
-                tp3Reached =
-                    true
+            if (tp3Hit) {
+                tp3Reached = true
             }
 
             /*
-             * STOP tem prioridade na mesma vela.
+             * Se stop e alvo aparecem na mesma vela,
+             * o backtest assume STOP primeiro.
              */
-
-            if (
-                stopHit
-            ) {
+            if (stopHit) {
 
                 return buildResult(
-                    signal =
-                        signal,
-
-                    outcome =
-                        BacktestOutcome.LOSS,
-
-                    exitTimestamp =
-                        candle.timestamp,
-
-                    exitPrice =
-                        stop,
-
-                    realizedR =
-                        -1.0,
-
+                    signal = signal,
+                    outcome = BacktestOutcome.LOSS,
+                    exitTimestamp = candle.timestamp,
+                    exitPrice = stop,
+                    realizedR = -1.0,
                     targetReached =
                         when {
                             tp2Reached -> 2
                             tp1Reached -> 1
                             else -> 0
                         },
-
                     maximumFavorable =
                         maximumFavorable,
-
                     maximumAdverse =
                         maximumAdverse,
-
-                    reason =
-                        "STOP_ATINGIDO",
-
-                    config =
-                        config
+                    reason = "STOP_ATINGIDO",
+                    config = config
                 )
             }
 
-            /*
-             * TP3 encerra a operação.
-             */
+            if (tp3Hit) {
 
-            if (
-                tp3Hit
-            ) {
-
-                return buildResult(
-                    signal =
-                        signal,
-
-                    outcome =
-                        BacktestOutcome.WIN,
-
-                    exitTimestamp =
-                        candle.timestamp,
-
-                    exitPrice =
+                val rr =
+                    rewardRisk(
+                        signal.entry,
+                        signal.stop,
                         signal.tp3,
+                        signal.direction
+                    )
 
-                    realizedR =
-                        signal.rr3,
-
-                    targetReached =
-                        3,
-
+                return buildResult(
+                    signal = signal,
+                    outcome = BacktestOutcome.WIN,
+                    exitTimestamp = candle.timestamp,
+                    exitPrice = signal.tp3,
+                    realizedR = rr,
+                    targetReached = 3,
                     maximumFavorable =
                         maximumFavorable,
-
                     maximumAdverse =
                         maximumAdverse,
-
-                    reason =
-                        "TP3_ATINGIDO",
-
-                    config =
-                        config
+                    reason = "TP3_ATINGIDO",
+                    config = config
                 )
             }
 
-            /*
-             * TP2 encerra a operação nesta primeira
-             * versão integral do backtest.
-             *
-             * A futura versão de gestão de posição
-             * poderá permitir parcial TP1/TP2/TP3.
-             */
+            if (tp2Hit) {
 
-            if (
-                tp2Hit
-            ) {
-
-                return buildResult(
-                    signal =
-                        signal,
-
-                    outcome =
-                        BacktestOutcome.WIN,
-
-                    exitTimestamp =
-                        candle.timestamp,
-
-                    exitPrice =
+                val rr =
+                    rewardRisk(
+                        signal.entry,
+                        signal.stop,
                         signal.tp2,
+                        signal.direction
+                    )
 
-                    realizedR =
-                        signal.rr2,
-
-                    targetReached =
-                        2,
-
+                return buildResult(
+                    signal = signal,
+                    outcome = BacktestOutcome.WIN,
+                    exitTimestamp = candle.timestamp,
+                    exitPrice = signal.tp2,
+                    realizedR = rr,
+                    targetReached = 2,
                     maximumFavorable =
                         maximumFavorable,
-
                     maximumAdverse =
                         maximumAdverse,
-
-                    reason =
-                        "TP2_ATINGIDO",
-
-                    config =
-                        config
+                    reason = "TP2_ATINGIDO",
+                    config = config
                 )
             }
 
-            if (
-                tp1Hit
-            ) {
+            if (tp1Hit) {
+
+                val rr =
+                    rewardRisk(
+                        signal.entry,
+                        signal.stop,
+                        signal.tp1,
+                        signal.direction
+                    )
 
                 return buildResult(
-                    signal =
-                        signal,
-
-                    outcome =
-                        BacktestOutcome.WIN,
-
-                    exitTimestamp =
-                        candle.timestamp,
-
-                    exitPrice =
-                        signal.tp1,
-
-                    realizedR =
-                        signal.rr1,
-
-                    targetReached =
-                        1,
-
+                    signal = signal,
+                    outcome = BacktestOutcome.WIN,
+                    exitTimestamp = candle.timestamp,
+                    exitPrice = signal.tp1,
+                    realizedR = rr,
+                    targetReached = 1,
                     maximumFavorable =
                         maximumFavorable,
-
                     maximumAdverse =
                         maximumAdverse,
-
-                    reason =
-                        "TP1_ATINGIDO",
-
-                    config =
-                        config
+                    reason = "TP1_ATINGIDO",
+                    config = config
                 )
             }
         }
-
-        /*
-         * Nenhum alvo ou stop foi atingido
-         * dentro da validade.
-         *
-         * Encerramos no último candle válido.
-         */
 
         val lastCandle =
             candles.lastOrNull {
@@ -485,7 +350,6 @@ object BacktestEngine {
         if (
             lastCandle == null
         ) {
-
             return noTrade(
                 signal,
                 "SEM_DADOS_NA_JANELA"
@@ -496,62 +360,44 @@ object BacktestEngine {
             lastCandle.close
 
         val realizedR =
-            if (
-                signal.direction ==
-                    BacktestDirection.BUY
+            when (
+                signal.direction
             ) {
 
-                (
-                    exitPrice -
-                        entry
-                ) /
-                    risk
+                BacktestDirection.BUY ->
+                    (
+                        exitPrice -
+                            entry
+                    ) / risk
 
-            } else if (
-                signal.direction ==
-                    BacktestDirection.SELL
-            ) {
+                BacktestDirection.SELL ->
+                    (
+                        entry -
+                            exitPrice
+                    ) / risk
 
-                (
-                    entry -
-                        exitPrice
-                ) /
-                    risk
-
-            } else {
-
-                0.0
+                BacktestDirection.NEUTRAL ->
+                    0.0
             }
 
         val outcome =
             when {
-
-                realizedR > 0.05 ->
-                    BacktestOutcome.EXPIRED
-
-                realizedR < -0.05 ->
-                    BacktestOutcome.EXPIRED
+                abs(realizedR) <= 0.05 ->
+                    BacktestOutcome.BREAKEVEN
 
                 else ->
-                    BacktestOutcome.BREAKEVEN
+                    BacktestOutcome.EXPIRED
             }
 
         return buildResult(
-            signal =
-                signal,
-
-            outcome =
-                outcome,
-
+            signal = signal,
+            outcome = outcome,
             exitTimestamp =
                 lastCandle.timestamp,
-
             exitPrice =
                 exitPrice,
-
             realizedR =
                 realizedR,
-
             targetReached =
                 when {
                     tp3Reached -> 3
@@ -559,19 +405,56 @@ object BacktestEngine {
                     tp1Reached -> 1
                     else -> 0
                 },
-
             maximumFavorable =
                 maximumFavorable,
-
             maximumAdverse =
                 maximumAdverse,
-
             reason =
                 "EXPIRADO",
-
             config =
                 config
         )
+    }
+
+    /*
+     * Calcula o múltiplo de risco diretamente.
+     *
+     * Não depende de rr1/rr2/rr3 armazenados
+     * no BacktestSignal.
+     */
+    private fun rewardRisk(
+        entry: Double,
+        stop: Double,
+        target: Double,
+        direction: BacktestDirection
+    ): Double {
+
+        val risk =
+            abs(
+                entry - stop
+            )
+
+        if (
+            risk <= 0.0
+        ) {
+            return 0.0
+        }
+
+        val reward =
+            when (direction) {
+
+                BacktestDirection.BUY ->
+                    target - entry
+
+                BacktestDirection.SELL ->
+                    entry - target
+
+                BacktestDirection.NEUTRAL ->
+                    0.0
+            }
+
+        return reward /
+            risk
     }
 
     private fun targetHit(
@@ -586,17 +469,13 @@ object BacktestEngine {
             return false
         }
 
-        return when (
-            direction
-        ) {
+        return when (direction) {
 
             BacktestDirection.BUY ->
-                candle.high >=
-                    target
+                candle.high >= target
 
             BacktestDirection.SELL ->
-                candle.low <=
-                    target
+                candle.low <= target
 
             BacktestDirection.NEUTRAL ->
                 false
@@ -642,20 +521,16 @@ object BacktestEngine {
         ) {
 
             BacktestDirection.BUY ->
-
                 (
                     candle.high -
                         signal.entry
-                ) /
-                    risk
+                ) / risk
 
             BacktestDirection.SELL ->
-
                 (
                     signal.entry -
                         candle.low
-                ) /
-                    risk
+                ) / risk
 
             BacktestDirection.NEUTRAL ->
                 0.0
@@ -679,20 +554,16 @@ object BacktestEngine {
         ) {
 
             BacktestDirection.BUY ->
-
                 (
                     signal.entry -
                         candle.low
-                ) /
-                    risk
+                ) / risk
 
             BacktestDirection.SELL ->
-
                 (
                     candle.high -
                         signal.entry
-                ) /
-                    risk
+                ) / risk
 
             BacktestDirection.NEUTRAL ->
                 0.0
@@ -718,7 +589,6 @@ object BacktestEngine {
             ) {
 
                 BacktestDirection.BUY ->
-
                     (
                         exitPrice -
                             signal.entry
@@ -727,7 +597,6 @@ object BacktestEngine {
                         100.0
 
                 BacktestDirection.SELL ->
-
                     (
                         signal.entry -
                             exitPrice
@@ -743,17 +612,10 @@ object BacktestEngine {
             if (
                 config.includeCosts
             ) {
-
                 config.costPercent
-
             } else {
-
                 0.0
             }
-
-        val returnPercent =
-            rawReturn -
-                cost
 
         return BacktestTradeResult(
 
@@ -773,7 +635,7 @@ object BacktestEngine {
                 realizedR,
 
             returnPercent =
-                returnPercent,
+                rawReturn - cost,
 
             targetReached =
                 targetReached,
@@ -790,13 +652,13 @@ object BacktestEngine {
     }
 
     private fun calculateMetrics(
-        trades: List<BacktestTradeResult>
+        trades:
+            List<BacktestTradeResult>
     ): BacktestMetrics {
 
         if (
             trades.isEmpty()
         ) {
-
             return BacktestMetrics()
         }
 
@@ -845,12 +707,9 @@ object BacktestEngine {
             if (
                 executed > 0
             ) {
-
                 totalR /
                     executed
-
             } else {
-
                 0.0
             }
 
@@ -858,13 +717,10 @@ object BacktestEngine {
             if (
                 executed > 0
             ) {
-
                 wins.toDouble() /
                     executed *
                     100.0
-
             } else {
-
                 0.0
             }
 
@@ -872,13 +728,10 @@ object BacktestEngine {
             if (
                 executed > 0
             ) {
-
                 losses.toDouble() /
                     executed *
                     100.0
-
             } else {
-
                 0.0
             }
 
@@ -903,22 +756,17 @@ object BacktestEngine {
                 }
 
         val profitFactor =
-            if (
-                negativeR > 0.0
-            ) {
+            when {
 
-                positiveR /
-                    negativeR
+                negativeR > 0.0 ->
+                    positiveR /
+                        negativeR
 
-            } else if (
-                positiveR > 0.0
-            ) {
+                positiveR > 0.0 ->
+                    Double.POSITIVE_INFINITY
 
-                Double.POSITIVE_INFINITY
-
-            } else {
-
-                0.0
+                else ->
+                    0.0
             }
 
         val averageWin =
@@ -963,12 +811,6 @@ object BacktestEngine {
                 0.0
             }
 
-        /*
-         * ==================================
-         * DRAWDOWN
-         * ==================================
-         */
-
         var equity =
             0.0
 
@@ -989,7 +831,6 @@ object BacktestEngine {
                 equity >
                     peak
             ) {
-
                 peak =
                     equity
             }
@@ -1002,7 +843,6 @@ object BacktestEngine {
                 drawdown >
                     maximumDrawdown
             ) {
-
                 maximumDrawdown =
                     drawdown
             }
@@ -1183,11 +1023,8 @@ object BacktestEngine {
         return if (
             isEmpty()
         ) {
-
             0.0
-
         } else {
-
             average()
         }
     }
