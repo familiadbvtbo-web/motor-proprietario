@@ -1,10 +1,8 @@
 package com.motorproprietario.app
 
 import kotlin.math.abs
-import kotlin.math.max
-import kotlin.math.min
 
-data class ProvisionInput(
+data class DeterministicRiskInput(
     val metrics: QuantMetrics,
     val mtfConfluence: Double,
     val fibonacci: FibonacciResult? = null,
@@ -13,7 +11,7 @@ data class ProvisionInput(
     val spread: Double = 0.0
 )
 
-data class ProvisionResult(
+data class DeterministicRiskResult(
     val falseSignalRisk: Double,
     val riskLevel: String,
     val blocked: Boolean,
@@ -23,7 +21,25 @@ data class ProvisionResult(
     val signalQuality: Double
 )
 
-object ProvisionEngine {
+/*
+ * Camada determinística do Motor.
+ *
+ * NÃO representa uma previsão estatística.
+ *
+ * Ela verifica condições observáveis do mercado
+ * que podem indicar:
+ *
+ * - falso rompimento
+ * - conflito entre indicadores
+ * - exaustão
+ * - baixa confirmação
+ * - conflito MTF
+ * - deterioração da qualidade do sinal
+ *
+ * Quanto maior o risco determinístico,
+ * maior a necessidade de aguardar confirmação.
+ */
+object DeterministicRiskEngine {
 
     private fun clamp(
         value: Double,
@@ -37,8 +53,8 @@ object ProvisionEngine {
     }
 
     fun calculate(
-        input: ProvisionInput
-    ): ProvisionResult {
+        input: DeterministicRiskInput
+    ): DeterministicRiskResult {
 
         val m =
             input.metrics
@@ -46,6 +62,7 @@ object ProvisionEngine {
         var risk = 0.0
 
         var bullishRisk = 0.0
+
         var bearishRisk = 0.0
 
         val reasons =
@@ -54,6 +71,7 @@ object ProvisionEngine {
         /*
          * 1. QUALIDADE DOS DADOS
          */
+
         if (
             input.dataQuality != "GOOD"
         ) {
@@ -66,11 +84,9 @@ object ProvisionEngine {
         }
 
         /*
-         * 2. CONFLUÊNCIA MULTI-TIMEFRAME
-         *
-         * Quanto menor a concordância,
-         * maior o risco de sinal falso.
+         * 2. CONFLUÊNCIA MTF
          */
+
         val mtf =
             clamp(
                 input.mtfConfluence
@@ -98,23 +114,24 @@ object ProvisionEngine {
         }
 
         /*
-         * 3. MACD x EMA
-         *
-         * Se tendência das médias e MACD
-         * apontam para lados diferentes,
-         * reduzimos a confiabilidade.
+         * 3. EMA x MACD
          */
+
         val emaBull =
-            m.ema9 > m.ema21
+            m.ema9 >
+                m.ema21
 
         val emaBear =
-            m.ema9 < m.ema21
+            m.ema9 <
+                m.ema21
 
         val macdBull =
-            m.macd > m.macdSignal
+            m.macd >
+                m.macdSignal
 
         val macdBear =
-            m.macd < m.macdSignal
+            m.macd <
+                m.macdSignal
 
         if (
             emaBull &&
@@ -122,7 +139,9 @@ object ProvisionEngine {
         ) {
 
             risk += 12.0
-            bearishRisk += 8.0
+
+            bearishRisk +=
+                8.0
 
             reasons.add(
                 "MACD_CONTRA_EMAS"
@@ -135,7 +154,9 @@ object ProvisionEngine {
         ) {
 
             risk += 12.0
-            bullishRisk += 8.0
+
+            bullishRisk +=
+                8.0
 
             reasons.add(
                 "MACD_CONTRA_EMAS"
@@ -143,17 +164,17 @@ object ProvisionEngine {
         }
 
         /*
-         * 4. RSI EM ZONA EXTREMA
-         *
-         * Extremos não significam automaticamente
-         * reversão, mas aumentam o cuidado.
+         * 4. RSI EXTREMO
          */
+
         if (
             m.rsi >= 75.0
         ) {
 
             risk += 10.0
-            bullishRisk += 10.0
+
+            bullishRisk +=
+                10.0
 
             reasons.add(
                 "RSI_SOBRECOMPRADO"
@@ -165,7 +186,9 @@ object ProvisionEngine {
         ) {
 
             risk += 10.0
-            bearishRisk += 10.0
+
+            bearishRisk +=
+                10.0
 
             reasons.add(
                 "RSI_SOBREVENDIDO"
@@ -174,19 +197,16 @@ object ProvisionEngine {
 
         /*
          * 5. DIVERGÊNCIA
-         *
-         * O valor do projeto está centralizado
-         * em 50.
-         *
-         * 25 = risco para compra
-         * 75 = risco para venda
          */
+
         if (
             m.divergence <= 30.0
         ) {
 
             risk += 15.0
-            bullishRisk += 15.0
+
+            bullishRisk +=
+                15.0
 
             reasons.add(
                 "DIVERGENCIA_BAIXISTA"
@@ -198,7 +218,9 @@ object ProvisionEngine {
         ) {
 
             risk += 15.0
-            bearishRisk += 15.0
+
+            bearishRisk +=
+                15.0
 
             reasons.add(
                 "DIVERGENCIA_ALTISTA"
@@ -206,51 +228,46 @@ object ProvisionEngine {
         }
 
         /*
-         * 6. BREAKOUT
+         * 6. ROMPIMENTO SEM VOLUME
          *
-         * Rompimento extremo sem confirmação
-         * pode produzir falso rompimento.
+         * Esse é um dos principais componentes
+         * da identificação de falso sinal.
          */
+
         if (
-            m.breakout >= 85.0
+            m.breakout >= 85.0 &&
+            m.volume < 55.0
         ) {
 
-            if (
-                m.volume < 55.0
-            ) {
+            risk += 14.0
 
-                risk += 14.0
-                bullishRisk += 14.0
+            bullishRisk +=
+                14.0
 
-                reasons.add(
-                    "ROMPIMENTO_SEM_VOLUME"
-                )
-            }
+            reasons.add(
+                "ROMPIMENTO_SEM_VOLUME"
+            )
         }
 
         if (
-            m.breakout <= 15.0
+            m.breakout <= 15.0 &&
+            m.volume < 55.0
         ) {
 
-            if (
-                m.volume < 55.0
-            ) {
+            risk += 14.0
 
-                risk += 14.0
-                bearishRisk += 14.0
+            bearishRisk +=
+                14.0
 
-                reasons.add(
-                    "ROMPIMENTO_SEM_VOLUME"
-                )
-            }
+            reasons.add(
+                "ROMPIMENTO_SEM_VOLUME"
+            )
         }
 
         /*
-         * 7. VOLUME
-         *
-         * Volume muito abaixo da referência
-         * reduz a confiabilidade do movimento.
+         * 7. VOLUME FRACO
          */
+
         if (
             m.volume < 35.0
         ) {
@@ -263,10 +280,13 @@ object ProvisionEngine {
         }
 
         /*
-         * Volume extremamente elevado pode representar
-         * expansão legítima ou evento de exaustão.
-         * Portanto não bloqueamos automaticamente.
+         * Volume extremo não bloqueia
+         * automaticamente.
+         *
+         * Pode representar expansão legítima
+         * ou exaustão.
          */
+
         if (
             m.volume >= 85.0
         ) {
@@ -278,9 +298,8 @@ object ProvisionEngine {
 
         /*
          * 8. ADX
-         *
-         * ADX baixo indica ausência de tendência clara.
          */
+
         if (
             m.adx < 18.0
         ) {
@@ -305,6 +324,7 @@ object ProvisionEngine {
         /*
          * 9. VOLATILIDADE
          */
+
         if (
             m.volatility >= 85.0
         ) {
@@ -327,18 +347,18 @@ object ProvisionEngine {
         }
 
         /*
-         * 10. PADRÃO DE CANDLE
-         *
-         * Candle contrário à tendência
-         * aumenta o provisionamento.
+         * 10. CANDLE CONTRA A ESTRUTURA
          */
+
         if (
             emaBull &&
             m.candlePattern <= 25.0
         ) {
 
             risk += 12.0
-            bullishRisk += 12.0
+
+            bullishRisk +=
+                12.0
 
             reasons.add(
                 "CANDLE_CONTRA_COMPRA"
@@ -351,7 +371,9 @@ object ProvisionEngine {
         ) {
 
             risk += 12.0
-            bearishRisk += 12.0
+
+            bearishRisk +=
+                12.0
 
             reasons.add(
                 "CANDLE_CONTRA_VENDA"
@@ -359,17 +381,17 @@ object ProvisionEngine {
         }
 
         /*
-         * 11. ESTRUTURA
-         *
-         * Extremidade estrutural pode significar
-         * continuação ou exaustão.
+         * 11. ESTRUTURA EXTREMA
          */
+
         if (
             m.structure >= 90.0
         ) {
 
             risk += 8.0
-            bullishRisk += 8.0
+
+            bullishRisk +=
+                8.0
 
             reasons.add(
                 "PRECO_PROXIMO_DO_TOPO"
@@ -381,7 +403,9 @@ object ProvisionEngine {
         ) {
 
             risk += 8.0
-            bearishRisk += 8.0
+
+            bearishRisk +=
+                8.0
 
             reasons.add(
                 "PRECO_PROXIMO_DO_FUNDO"
@@ -390,11 +414,8 @@ object ProvisionEngine {
 
         /*
          * 12. BOLLINGER
-         *
-         * Preço fora da banda pode significar
-         * força ou exaustão. Por isso é alerta,
-         * não bloqueio automático.
          */
+
         if (
             input.price > 0.0
         ) {
@@ -427,6 +448,7 @@ object ProvisionEngine {
         /*
          * 13. FIBONACCI
          */
+
         val fib =
             input.fibonacci
 
@@ -459,10 +481,8 @@ object ProvisionEngine {
             }
 
             if (
-                fib.zone ==
-                    "SEM_DADOS" ||
-                fib.zone ==
-                    "SEM_RANGE"
+                fib.zone == "SEM_DADOS" ||
+                fib.zone == "SEM_RANGE"
             ) {
 
                 risk += 5.0
@@ -475,10 +495,8 @@ object ProvisionEngine {
 
         /*
          * 14. SPREAD
-         *
-         * Se BID/ASK estiver disponível,
-         * detectamos spread anormal em relação ao ATR.
          */
+
         if (
             input.spread > 0.0 &&
             m.atr > 0.0
@@ -497,6 +515,7 @@ object ProvisionEngine {
                 reasons.add(
                     "SPREAD_ELEVADO"
                 )
+
             } else if (
                 spreadRatio > 0.10
             ) {
@@ -510,20 +529,21 @@ object ProvisionEngine {
         }
 
         /*
-         * LIMITAÇÃO DO RISCO
+         * 15. LIMITAÇÃO
          */
+
         risk =
             clamp(
                 risk
             )
 
         /*
-         * Bloqueio somente quando o risco
-         * realmente compromete a qualidade.
+         * BLOQUEIO
          */
+
         val blocked =
             risk >= 65.0 ||
-                input.dataQuality != "GOOD"
+            input.dataQuality != "GOOD"
 
         val riskLevel =
             when {
@@ -541,23 +561,14 @@ object ProvisionEngine {
                     "MUITO BAIXO"
             }
 
-        /*
-         * Qualidade é inversamente proporcional
-         * ao risco.
-         */
         val signalQuality =
             clamp(
                 100.0 -
                     risk
             )
 
-        /*
-         * Remove duplicidades das mensagens.
-         */
-        val uniqueReasons =
-            reasons.distinct()
+        return DeterministicRiskResult(
 
-        return ProvisionResult(
             falseSignalRisk =
                 risk,
 
@@ -568,7 +579,7 @@ object ProvisionEngine {
                 blocked,
 
             reasons =
-                uniqueReasons,
+                reasons.distinct(),
 
             bullishRisk =
                 clamp(
