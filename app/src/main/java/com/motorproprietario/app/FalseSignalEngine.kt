@@ -11,34 +11,58 @@ data class FalseSignalInput(
 data class FalseSignalResult(
     val risk: Double,
     val level: String,
-    val blocked: Boolean
+    val blocked: Boolean,
+
+    val structureRisk: Double,
+    val momentumRisk: Double,
+    val volumeRisk: Double,
+    val confirmationRisk: Double,
+    val timeframeRisk: Double,
+
+    val severeFactors: Int,
+    val extremeFactorDetected: Boolean
 )
 
 object FalseSignalEngine {
+
+    private fun clamp(
+        value: Double
+    ): Double {
+
+        return value.coerceIn(
+            0.0,
+            100.0
+        )
+    }
 
     fun evaluate(
         input: FalseSignalInput
     ): FalseSignalResult {
 
         val structure =
-            input.structureContradiction
-                .coerceIn(0.0, 100.0)
+            clamp(
+                input.structureContradiction
+            )
 
         val momentum =
-            input.momentumDivergence
-                .coerceIn(0.0, 100.0)
+            clamp(
+                input.momentumDivergence
+            )
 
         val volume =
-            input.volumeMismatch
-                .coerceIn(0.0, 100.0)
+            clamp(
+                input.volumeMismatch
+            )
 
         val confirmation =
-            input.confirmationFailure
-                .coerceIn(0.0, 100.0)
+            clamp(
+                input.confirmationFailure
+            )
 
         val timeframe =
-            input.timeframeConflict
-                .coerceIn(0.0, 100.0)
+            clamp(
+                input.timeframeConflict
+            )
 
         val values =
             listOf(
@@ -49,6 +73,16 @@ object FalseSignalEngine {
                 timeframe
             )
 
+        /*
+         * ==================================
+         * RISCO BASE
+         * ==================================
+         *
+         * Os pesos mantêm a importância relativa
+         * da estrutura, momentum, confirmação,
+         * timeframe e volume.
+         */
+
         val baseRisk =
             structure * 0.25 +
             momentum * 0.20 +
@@ -57,31 +91,91 @@ object FalseSignalEngine {
             timeframe * 0.20
 
         /*
-         * Vários sinais de alerta simultâneos
-         * aumentam a possibilidade de armadilha.
+         * ==================================
+         * FATORES SEVEROS
+         * ==================================
          */
+
         val severeFactors =
             values.count {
                 it >= 70.0
             }
 
+        /*
+         * Quando vários fatores estão elevados
+         * simultaneamente, existe interação entre
+         * os problemas.
+         */
+
         val interaction =
             when {
-                severeFactors >= 4 -> 15.0
-                severeFactors >= 3 -> 10.0
-                severeFactors >= 2 -> 5.0
-                else -> 0.0
+
+                severeFactors >= 4 ->
+                    15.0
+
+                severeFactors >= 3 ->
+                    10.0
+
+                severeFactors >= 2 ->
+                    5.0
+
+                else ->
+                    0.0
             }
 
         /*
-         * Um único fator extremamente elevado
-         * também merece atenção.
+         * ==================================
+         * FATOR EXTREMO
+         * ==================================
          */
+
+        val extremeFactorDetected =
+            values.any {
+                it >= 90.0
+            }
+
         val extremeFactor =
             if (
-                values.any {
-                    it >= 90.0
-                }
+                extremeFactorDetected
+            ) {
+                5.0
+            } else {
+                0.0
+            }
+
+        /*
+         * ==================================
+         * CONFLITO ESTRUTURAL
+         * ==================================
+         *
+         * Estrutura + momentum muito ruins
+         * ao mesmo tempo merecem penalização
+         * adicional.
+         */
+
+        val structureMomentumConflict =
+            if (
+                structure >= 70.0 &&
+                momentum >= 70.0
+            ) {
+                5.0
+            } else {
+                0.0
+            }
+
+        /*
+         * ==================================
+         * CONFIRMAÇÃO + TIMEFRAME
+         * ==================================
+         *
+         * Um sinal sem confirmação em vários
+         * timeframes é especialmente vulnerável.
+         */
+
+        val confirmationTimeframeConflict =
+            if (
+                confirmation >= 70.0 &&
+                timeframe >= 70.0
             ) {
                 5.0
             } else {
@@ -92,14 +186,23 @@ object FalseSignalEngine {
             (
                 baseRisk +
                     interaction +
-                    extremeFactor
+                    extremeFactor +
+                    structureMomentumConflict +
+                    confirmationTimeframeConflict
             ).coerceIn(
                 0.0,
                 100.0
             )
 
+        /*
+         * ==================================
+         * CLASSIFICAÇÃO
+         * ==================================
+         */
+
         val level =
             when {
+
                 normalizedRisk >= 90.0 ->
                     "CRÍTICO"
 
@@ -119,11 +222,53 @@ object FalseSignalEngine {
                     "MUITO BAIXO"
             }
 
+        /*
+         * ==================================
+         * BLOQUEIO
+         * ==================================
+         *
+         * O bloqueio é deliberadamente conservador.
+         *
+         * O APK é analista:
+         * quando o risco é muito alto,
+         * ele não apresenta o cenário como
+         * executável.
+         */
+
+        val blocked =
+            normalizedRisk >= 75.0
+
         return FalseSignalResult(
-            risk = normalizedRisk,
-            level = level,
+
+            risk =
+                normalizedRisk,
+
+            level =
+                level,
+
             blocked =
-                normalizedRisk >= 75.0
+                blocked,
+
+            structureRisk =
+                structure,
+
+            momentumRisk =
+                momentum,
+
+            volumeRisk =
+                volume,
+
+            confirmationRisk =
+                confirmation,
+
+            timeframeRisk =
+                timeframe,
+
+            severeFactors =
+                severeFactors,
+
+            extremeFactorDetected =
+                extremeFactorDetected
         )
     }
 }
