@@ -1,5 +1,7 @@
 package com.motorproprietario.app
 
+import android.os.Handler
+import android.os.Looper
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
@@ -19,18 +21,58 @@ class TwelveDataClient {
 
     private val client =
         OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(0, TimeUnit.MILLISECONDS)
-            .pingInterval(10, TimeUnit.SECONDS)
+            .connectTimeout(
+                15,
+                TimeUnit.SECONDS
+            )
+            .readTimeout(
+                0,
+                TimeUnit.MILLISECONDS
+            )
+            .pingInterval(
+                10,
+                TimeUnit.SECONDS
+            )
             .build()
 
-    private var webSocket: WebSocket? = null
+    private val handler =
+        Handler(
+            Looper.getMainLooper()
+        )
 
-    private var listener:
+    private var webSocket:
+        WebSocket? = null
+
+    private var quoteListener:
         ((RealTimeQuote) -> Unit)? = null
 
     private var errorListener:
         ((Throwable) -> Unit)? = null
+
+    private var subscribedSymbols:
+        List<String> = emptyList()
+
+    private var reconnectAttempts =
+        0
+
+    private var manuallyDisconnected =
+        false
+
+    private var connecting =
+        false
+
+    private val reconnectRunnable =
+        Runnable {
+
+            if (
+                !manuallyDisconnected &&
+                subscribedSymbols.isNotEmpty()
+            ) {
+                connectInternal(
+                    subscribedSymbols
+                )
+            }
+        }
 
     fun connect(
         symbols: List<String>,
@@ -38,37 +80,19 @@ class TwelveDataClient {
         onError: (Throwable) -> Unit
     ) {
 
-        listener = onQuote
-        errorListener = onError
+        quoteListener =
+            onQuote
 
-        disconnect()
+        errorListener =
+            onError
 
-        if (symbols.isEmpty()) {
+        manuallyDisconnected =
+            false
 
-            onError(
-                IllegalArgumentException(
-                    "Nenhum ativo informado."
-                )
-            )
+        reconnectAttempts =
+            0
 
-            return
-        }
-
-        val apiKey =
-            ApiConfig.TWELVE_DATA_API_KEY
-
-        if (apiKey.isBlank()) {
-
-            onError(
-                IllegalStateException(
-                    "TWELVE_DATA_API_KEY não configurada."
-                )
-            )
-
-            return
-        }
-
-        val cleanSymbols =
+        subscribedSymbols =
             symbols
                 .map {
                     it.trim()
@@ -78,94 +102,195 @@ class TwelveDataClient {
                 }
                 .distinct()
 
-        val endpoint =
+        handler.removeCallbacks(
+            reconnectRunnable
+        )
+
+        disconnectSocketOnly()
+
+        if (
+            subscribedSymbols.isEmpty()
+        ) {
+
+            errorListener?.invoke(
+                IllegalArgumentException(
+                    "Nenhum ativo informado."
+                )
+            )
+
+            return
+        }
+
+        connectInternal(
+            subscribedSymbols
+        )
+    }
+
+    private fun connectInternal(
+        symbols: List<String>
+    ) {
+
+        if (
+            manuallyDisconnected
+        ) {
+            return
+        }
+
+        if (
+            connecting
+        ) {
+            return
+        }
+
+        val apiKey =
+            ApiConfig.TWELVE_DATA_API_KEY
+
+        if (
+            apiKey.isBlank()
+        ) {
+
+            errorListener?.invoke(
+                IllegalStateException(
+                    "TWELVE_DATA_API_KEY não configurada."
+                )
+            )
+
+            return
+        }
+
+        connecting =
+            true
+
+        val url =
             "wss://ws.twelvedata.com/v1/quotes/price" +
-            "?apikey=$apiKey"
+                "?apikey=$apiKey"
 
         val request =
             Request.Builder()
-                .url(endpoint)
+                .url(url)
                 .build()
 
         webSocket =
             client.newWebSocket(
                 request,
-                object : WebSocketListener() {
+                createWebSocketListener(
+                    symbols
+                )
+            )
+    }
 
-                    override fun onOpen(
-                        webSocket: WebSocket,
-                        response: Response
-                    ) {
+    private fun createWebSocketListener(
+        symbols: List<String>
+    ): WebSocketListener {
 
-                        val subscribe =
+        return object :
+            WebSocketListener() {
+
+            override fun onOpen(
+                webSocket: WebSocket,
+                response: Response
+            ) {
+
+                connecting =
+                    false
+
+                reconnectAttempts =
+                    0
+
+                val subscription =
+                    JSONObject()
+                        .put(
+                            "action",
+                            "subscribe"
+                        )
+                        .put(
+                            "params",
                             JSONObject()
                                 .put(
-                                    "action",
-                                    "subscribe"
+                                    "symbols",
+                                    symbols.joinToString(
+                                        ","
+                                    )
                                 )
-                                .put(
-                                    "params",
-                                    JSONObject()
-                                        .put(
-                                            "symbols",
-                                            cleanSymbols
-                                                .joinToString(",")
-                                        )
-                                )
-                                .toString()
-
-                        webSocket.send(
-                            subscribe
                         )
-                    }
 
-                    override fun onMessage(
-                        webSocket: WebSocket,
-                        text: String
-                    ) {
+                webSocket.send(
+                    subscription.toString()
+                )
+            }
 
-                        processMessage(
-                            text
-                        )
-                    }
+            override fun onMessage(
+                webSocket: WebSocket,
+                text: String
+            ) {
 
-                    override fun onClosing(
-                        webSocket: WebSocket,
-                        code: Int,
-                        reason: String
-                    ) {
+                processMessage(
+                    text
+                )
+            }
 
-                        webSocket.close(
-                            1000,
-                            "Encerrando conexão"
-                        )
-                    }
+            override fun onClosing(
+                webSocket: WebSocket,
+                code: Int,
+                reason: String
+            ) {
 
-                    override fun onClosed(
-                        webSocket: WebSocket,
-                        code: Int,
-                        reason: String
-                    ) {
+                webSocket.close(
+                    1000,
+                    "Encerrando conexão"
+                )
+            }
 
-                        this@TwelveDataClient.webSocket =
-                            null
-                    }
+            override fun onClosed(
+                webSocket: WebSocket,
+                code: Int,
+                reason: String
+            ) {
 
-                    override fun onFailure(
-                        webSocket: WebSocket,
-                        t: Throwable,
-                        response: Response?
-                    ) {
+                connecting =
+                    false
 
-                        this@TwelveDataClient.webSocket =
-                            null
+                if (
+                    this@TwelveDataClient
+                        .webSocket ===
+                    webSocket
+                ) {
 
-                        errorListener?.invoke(
-                            t
-                        )
-                    }
+                    this@TwelveDataClient
+                        .webSocket =
+                        null
                 }
-            )
+
+                scheduleReconnect()
+            }
+
+            override fun onFailure(
+                webSocket: WebSocket,
+                t: Throwable,
+                response: Response?
+            ) {
+
+                connecting =
+                    false
+
+                if (
+                    this@TwelveDataClient
+                        .webSocket ===
+                    webSocket
+                ) {
+
+                    this@TwelveDataClient
+                        .webSocket =
+                        null
+                }
+
+                errorListener?.invoke(
+                    t
+                )
+
+                scheduleReconnect()
+            }
+        }
     }
 
     private fun processMessage(
@@ -175,19 +300,19 @@ class TwelveDataClient {
         try {
 
             val json =
-                JSONObject(message)
-
-            /*
-             * Mensagens que não são preços,
-             * como heartbeat/status/error,
-             * não entram na análise.
-             */
+                JSONObject(
+                    message
+                )
 
             val event =
                 json.optString(
                     "event"
                 )
 
+            /*
+             * O WebSocket envia outros eventos
+             * além das cotações.
+             */
             if (
                 event != "price"
             ) {
@@ -211,6 +336,27 @@ class TwelveDataClient {
                     0L
                 )
 
+            /*
+             * Proteção contra dados inválidos.
+             */
+            if (
+                symbol.isBlank()
+            ) {
+                return
+            }
+
+            if (
+                !price.isFinite()
+            ) {
+                return
+            }
+
+            if (
+                price <= 0.0
+            ) {
+                return
+            }
+
             val dayVolume =
                 if (
                     json.has(
@@ -224,52 +370,52 @@ class TwelveDataClient {
                     json.optDouble(
                         "day_volume",
                         Double.NaN
-                    )
-
-                } else {
-
-                    null
-                }
-
-            if (
-                symbol.isBlank()
-            ) {
-                return
-            }
-
-            if (
-                !price.isFinite() ||
-                price <= 0.0
-            ) {
-                return
-            }
-
-            val timestampMs =
-                if (timestamp > 0L) {
-
-                    if (
-                        timestamp < 10_000_000_000L
-                    ) {
-                        timestamp * 1000L
-                    } else {
-                        timestamp
+                    ).takeIf {
+                        it.isFinite()
                     }
 
                 } else {
-
-                    System.currentTimeMillis()
+                    null
                 }
 
-            listener?.invoke(
+            /*
+             * Twelve Data pode entregar timestamp
+             * em segundos ou milissegundos.
+             */
+            val timestampMs =
+                when {
+
+                    timestamp <= 0L ->
+                        System.currentTimeMillis()
+
+                    timestamp <
+                        10_000_000_000L ->
+
+                        timestamp *
+                            1_000L
+
+                    else ->
+                        timestamp
+                }
+
+            val quote =
                 RealTimeQuote(
-                    symbol = symbol,
-                    timestamp = timestampMs,
-                    price = price,
+
+                    symbol =
+                        symbol,
+
+                    timestamp =
+                        timestampMs,
+
+                    price =
+                        price,
+
                     dayVolume =
-                        dayVolume?.takeIf {
-                            it.isFinite()
-                        }
+                        dayVolume
                 )
+
+            quoteListener?.invoke(
+                quote
             )
 
         } catch (
@@ -282,16 +428,94 @@ class TwelveDataClient {
         }
     }
 
-    fun disconnect() {
+    private fun scheduleReconnect() {
+
+        if (
+            manuallyDisconnected
+        ) {
+            return
+        }
+
+        if (
+            subscribedSymbols.isEmpty()
+        ) {
+            return
+        }
+
+        handler.removeCallbacks(
+            reconnectRunnable
+        )
+
+        reconnectAttempts =
+            (
+                reconnectAttempts + 1
+            ).coerceAtMost(
+                6
+            )
+
+        val delay =
+            when (
+                reconnectAttempts
+            ) {
+
+                1 ->
+                    2_000L
+
+                2 ->
+                    4_000L
+
+                3 ->
+                    8_000L
+
+                4 ->
+                    15_000L
+
+                5 ->
+                    30_000L
+
+                else ->
+                    60_000L
+            }
+
+        handler.postDelayed(
+            reconnectRunnable,
+            delay
+        )
+    }
+
+    private fun disconnectSocketOnly() {
+
+        connecting =
+            false
 
         webSocket?.close(
             1000,
-            "Cliente encerrado"
+            "Reconectando"
         )
 
-        webSocket = null
+        webSocket =
+            null
     }
 
-    fun isConnected(): Boolean =
-        webSocket != null
+    fun disconnect() {
+
+        manuallyDisconnected =
+            true
+
+        connecting =
+            false
+
+        handler.removeCallbacks(
+            reconnectRunnable
+        )
+
+        disconnectSocketOnly()
+    }
+
+    fun isConnected():
+        Boolean {
+
+        return webSocket != null &&
+            !connecting
+    }
 }
