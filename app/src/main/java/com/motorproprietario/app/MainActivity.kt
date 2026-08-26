@@ -190,10 +190,13 @@ class MainActivity : AppCompatActivity() {
                 "CONECTANDO..."
             )
 
+        root.addView(title)
+        root.addView(subtitle)
+
         /*
-         * -------------------------
+         * ==============================
          * ATIVO
-         * -------------------------
+         * ==============================
          */
 
         root.addView(
@@ -274,9 +277,9 @@ class MainActivity : AppCompatActivity() {
         )
 
         /*
-         * -------------------------
+         * ==============================
          * TIMEFRAME
-         * -------------------------
+         * ==============================
          */
 
         root.addView(
@@ -342,9 +345,9 @@ class MainActivity : AppCompatActivity() {
         )
 
         /*
-         * -------------------------
+         * ==============================
          * HORIZONTE
-         * -------------------------
+         * ==============================
          */
 
         root.addView(
@@ -373,9 +376,7 @@ class MainActivity : AppCompatActivity() {
                 horizons
             )
 
-        horizonSpinner.setSelection(
-            0
-        )
+        horizonSpinner.setSelection(0)
 
         horizonSpinner.onItemSelectedListener =
             object :
@@ -405,9 +406,9 @@ class MainActivity : AppCompatActivity() {
         )
 
         /*
-         * -------------------------
+         * ==============================
          * STATUS
-         * -------------------------
+         * ==============================
          */
 
         root.addView(
@@ -415,9 +416,9 @@ class MainActivity : AppCompatActivity() {
         )
 
         /*
-         * -------------------------
+         * ==============================
          * ATIVO / PREÇO
-         * -------------------------
+         * ==============================
          */
 
         root.addView(
@@ -457,9 +458,9 @@ class MainActivity : AppCompatActivity() {
         )
 
         /*
-         * -------------------------
+         * ==============================
          * ANÁLISE
-         * -------------------------
+         * ==============================
          */
 
         root.addView(
@@ -667,10 +668,15 @@ class MainActivity : AppCompatActivity() {
                                 freshCandles.isNotEmpty()
                             ) {
 
-                                candleCache[
-                                    timeframe
-                                ] =
-                                    freshCandles
+                                synchronized(
+                                    candleCache
+                                ) {
+
+                                    candleCache[
+                                        timeframe
+                                    ] =
+                                        freshCandles
+                                }
 
                                 lastCandleUpdate[
                                     timeframe
@@ -726,7 +732,6 @@ class MainActivity : AppCompatActivity() {
                 synchronized(
                     candleCache
                 ) {
-
                     candles.putAll(
                         candleCache
                     )
@@ -746,8 +751,11 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 /*
-                 * MOTOR GERAL
+                 * ==============================
+                 * MOTOR QUANTITATIVO GERAL
+                 * ==============================
                  */
+
                 val realtime =
                     RealtimeMarketAnalyzer.analyze(
                         symbol =
@@ -773,9 +781,11 @@ class MainActivity : AppCompatActivity() {
                     )
 
                 /*
-                 * MÉTRICA DO TIMEFRAME
-                 * ESCOLHIDO PELO USUÁRIO.
+                 * ==============================
+                 * TIMEFRAME ESCOLHIDO
+                 * ==============================
                  */
+
                 val selectedMetrics =
                     realtime.metrics[
                         selectedTimeframe
@@ -786,8 +796,11 @@ class MainActivity : AppCompatActivity() {
                         ?: realtime.metrics.values.first()
 
                 /*
-                 * Sequência do Motor.
+                 * ==============================
+                 * SEQUÊNCIA
+                 * ==============================
                  */
+
                 val signalDetected =
                     realtime.direction !=
                         "NEUTRO"
@@ -848,8 +861,11 @@ class MainActivity : AppCompatActivity() {
                     sequence.stage
 
                 /*
-                 * Falso sinal individual.
+                 * ==============================
+                 * FALSO SINAL
+                 * ==============================
                  */
+
                 val falseSignalInput =
                     FalseSignalInput(
                         structureContradiction =
@@ -879,6 +895,12 @@ class MainActivity : AppCompatActivity() {
                                 realtime.mtfConfluence
                     )
 
+                /*
+                 * ==============================
+                 * MOTOR FINAL
+                 * ==============================
+                 */
+
                 val finalInput =
                     FinalMotorInput(
                         market =
@@ -902,6 +924,88 @@ class MainActivity : AppCompatActivity() {
                         finalInput
                     )
 
+                /*
+                 * ==============================
+                 * PROBABILIDADE DO TIMEFRAME
+                 * ==============================
+                 */
+
+                val selectedProbability =
+                    calculateProbability(
+                        metrics =
+                            selectedMetrics,
+
+                        mtfConfluence =
+                            realtime.mtfConfluence,
+
+                        falseSignalRisk =
+                            realtime.fsi,
+
+                        candles =
+                            candles[selectedTimeframe]
+                                ?: emptyList()
+                    )
+
+                /*
+                 * ==============================
+                 * PROBABILIDADES POR TIMEFRAME
+                 * ==============================
+                 */
+
+                val timeframeProbabilities =
+                    LinkedHashMap<
+                        String,
+                        ProbabilityResult
+                    >()
+
+                for (
+                    timeframe in listOf(
+                        "M1",
+                        "M5",
+                        "M15",
+                        "M30",
+                        "H1",
+                        "H4",
+                        "D1"
+                    )
+                ) {
+
+                    val metric =
+                        realtime.metrics[
+                            timeframe
+                        ]
+                            ?: continue
+
+                    val probability =
+                        calculateProbability(
+                            metrics =
+                                metric,
+
+                            mtfConfluence =
+                                realtime.mtfConfluence,
+
+                            falseSignalRisk =
+                                realtime.fsi,
+
+                            candles =
+                                candles[
+                                    timeframe
+                                ]
+                                    ?: emptyList()
+                        )
+
+                    timeframeProbabilities[
+                        timeframe
+                    ] =
+                        probability
+                }
+
+                /*
+                 * ==============================
+                 * EXIBIÇÃO
+                 * ==============================
+                 */
+
                 runOnUiThread {
 
                     analysisView.text =
@@ -916,7 +1020,13 @@ class MainActivity : AppCompatActivity() {
                                 candles,
 
                             selectedMetrics =
-                                selectedMetrics
+                                selectedMetrics,
+
+                            selectedProbability =
+                                selectedProbability,
+
+                            timeframeProbabilities =
+                                timeframeProbabilities
                         )
                 }
 
@@ -942,6 +1052,249 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /*
+     * ==================================================
+     * PROBABILIDADE
+     * ==================================================
+     */
+
+    private fun calculateProbability(
+        metrics:
+            QuantMetrics,
+
+        mtfConfluence:
+            Double,
+
+        falseSignalRisk:
+            Double,
+
+        candles:
+            List<MarketCandle>
+    ): ProbabilityResult {
+
+        val fibonacci =
+            calculateFibonacciEvidence(
+                candles
+            )
+
+        /*
+         * Não existe fluxo institucional real
+         * disponível nesta camada.
+         *
+         * Portanto não inventamos dados.
+         *
+         * A pressão abaixo é apenas uma evidência
+         * quantitativa baseada em volume + estrutura
+         * + candle.
+         */
+
+        val institutionalPressure =
+            calculateFlowPressure(
+                metrics
+            )
+
+        return ProbabilityEngine.calculate(
+            ProbabilityInput(
+                metrics =
+                    metrics,
+
+                mtfConfluence =
+                    mtfConfluence,
+
+                falseSignalRisk =
+                    falseSignalRisk,
+
+                fibonacciBullish =
+                    fibonacci.first,
+
+                fibonacciBearish =
+                    fibonacci.second,
+
+                institutionalBullish =
+                    institutionalPressure.first,
+
+                institutionalBearish =
+                    institutionalPressure.second
+            )
+        )
+    }
+
+    /*
+     * ==================================================
+     * FIBONACCI
+     * ==================================================
+     */
+
+    private fun calculateFibonacciEvidence(
+        candles:
+            List<MarketCandle>
+    ): Pair<Double, Double> {
+
+        if (
+            candles.size < 20
+        ) {
+            return 50.0 to 50.0
+        }
+
+        val window =
+            candles.takeLast(
+                min(
+                    100,
+                    candles.size
+                )
+            )
+
+        val high =
+            window.maxOf {
+                it.high
+            }
+
+        val low =
+            window.minOf {
+                it.low
+            }
+
+        val last =
+            window.last().close
+
+        val range =
+            high - low
+
+        if (
+            range <= 0.0
+        ) {
+            return 50.0 to 50.0
+        }
+
+        val level382 =
+            high -
+                range * 0.382
+
+        val level500 =
+            high -
+                range * 0.500
+
+        val level618 =
+            high -
+                range * 0.618
+
+        /*
+         * Perto de zonas de retração:
+         * o motor trata como região de decisão,
+         * não como certeza de reversão.
+         */
+
+        val distance382 =
+            abs(
+                last -
+                    level382
+            ) /
+                range
+
+        val distance500 =
+            abs(
+                last -
+                    level500
+            ) /
+                range
+
+        val distance618 =
+            abs(
+                last -
+                    level618
+            ) /
+                range
+
+        val proximity =
+            min(
+                distance382,
+                min(
+                    distance500,
+                    distance618
+                )
+            )
+
+        if (
+            proximity < 0.025
+        ) {
+
+            return if (
+                last >
+                    level618
+            ) {
+                65.0 to 45.0
+            } else {
+                45.0 to 65.0
+            }
+        }
+
+        return if (
+            last >
+                level500
+        ) {
+            58.0 to 42.0
+        } else {
+            42.0 to 58.0
+        }
+    }
+
+    /*
+     * ==================================================
+     * PRESSÃO DE FLUXO
+     * ==================================================
+     *
+     * IMPORTANTE:
+     * isto NÃO afirma que estamos vendo ordens de
+     * instituições ou "tubarões".
+     *
+     * É uma inferência quantitativa através de:
+     * volume + estrutura + candle.
+     *
+     * Para fluxo institucional real será necessário
+     * adicionar uma fonte específica de order flow.
+     */
+
+    private fun calculateFlowPressure(
+        metrics:
+            QuantMetrics
+    ): Pair<Double, Double> {
+
+        val bullish =
+            (
+                metrics.volume * 0.40 +
+                metrics.structure * 0.35 +
+                metrics.candlePattern * 0.25
+            )
+                .coerceIn(
+                    0.0,
+                    100.0
+                )
+
+        val bearish =
+            (
+                (100.0 -
+                    metrics.volume) * 0.40 +
+
+                (100.0 -
+                    metrics.structure) * 0.35 +
+
+                (100.0 -
+                    metrics.candlePattern) * 0.25
+            )
+                .coerceIn(
+                    0.0,
+                    100.0
+                )
+
+        return bullish to bearish
+    }
+
+    /*
+     * ==================================================
+     * TEXTO PRINCIPAL
+     * ==================================================
+     */
+
     private fun buildAnalysisText(
         realtime:
             RealtimeAnalysis,
@@ -953,17 +1306,17 @@ class MainActivity : AppCompatActivity() {
             Map<String, List<MarketCandle>>,
 
         selectedMetrics:
-            QuantMetrics
+            QuantMetrics,
+
+        selectedProbability:
+            ProbabilityResult,
+
+        timeframeProbabilities:
+            Map<String, ProbabilityResult>
     ): String {
 
         val output =
             StringBuilder()
-
-        /*
-         * ==================================
-         * CABEÇALHO
-         * ==================================
-         */
 
         output.append(
             "━━━━━━━━━━━━━━━━━━━━\n"
@@ -991,7 +1344,7 @@ class MainActivity : AppCompatActivity() {
 
         /*
          * ==================================
-         * RESULTADO PRINCIPAL
+         * RESULTADO FINAL
          * ==================================
          */
 
@@ -1000,13 +1353,13 @@ class MainActivity : AppCompatActivity() {
         )
 
         output.append(
-            "DIREÇÃO GERAL: ${
-                realtime.direction
+            "MAIOR PRESSÃO: ${
+                selectedProbability.directionalBias
             }\n"
         )
 
         output.append(
-            "DECISÃO: ${
+            "DECISÃO FINAL: ${
                 result.decision.decision
             }\n"
         )
@@ -1023,73 +1376,38 @@ class MainActivity : AppCompatActivity() {
          * ==================================
          */
 
-        val probability =
-            when {
-
-                realtime.direction ==
-                    "COMPRA" ->
-                    realtime.score
-
-                realtime.direction ==
-                    "VENDA" ->
-                    100.0 -
-                        realtime.score
-
-                else ->
-                    50.0
-            }
-
-        val neutralProbability =
-            100.0 -
-                probability
-
         output.append(
-            "PROBABILIDADE DIRECIONAL\n\n"
+            "PROBABILIDADE — $selectedTimeframe\n\n"
         )
 
         output.append(
             "COMPRA: ${
-                probability
-                    .coerceIn(
-                        0.0,
-                        100.0
-                    )
-                    .let {
-                        if (
-                            realtime.direction ==
-                                "COMPRA"
-                        ) {
-                            "%.1f".format(it)
-                        } else {
-                            "—"
-                        }
-                    }
+                "%.1f".format(
+                    selectedProbability.buyProbability
+                )
             }%\n"
         )
 
         output.append(
             "VENDA: ${
-                if (
-                    realtime.direction ==
-                        "VENDA"
-                ) {
-                    "%.1f".format(
-                        probability
-                    )
-                } else {
-                    "—"
-                }
+                "%.1f".format(
+                    selectedProbability.sellProbability
+                )
             }%\n"
         )
 
         output.append(
-            "NEUTRO/INCERTEZA: ${
+            "NEUTRO: ${
                 "%.1f".format(
-                    neutralProbability
-                        .coerceIn(
-                            0.0,
-                            100.0
-                        )
+                    selectedProbability.neutralProbability
+                )
+            }%\n"
+        )
+
+        output.append(
+            "CONFIANÇA: ${
+                "%.1f".format(
+                    selectedProbability.confidence
                 )
             }%\n\n"
         )
@@ -1104,23 +1422,27 @@ class MainActivity : AppCompatActivity() {
             when {
 
                 realtime.fsi >=
-                    70.0 ->
-                    "MUITO ALTO — EVITAR SINAL"
+                    80.0 ->
+                    "CRÍTICO — BLOQUEAR SINAL"
 
                 realtime.fsi >=
-                    50.0 ->
-                    "ALTO — AGUARDAR CONFIRMAÇÃO"
+                    60.0 ->
+                    "ALTO — EXIGIR CONFIRMAÇÃO"
 
                 realtime.fsi >=
-                    35.0 ->
+                    40.0 ->
                     "MODERADO — PROTEGER"
 
+                realtime.fsi >=
+                    20.0 ->
+                    "BAIXO"
+
                 else ->
-                    "BAIXO — SINAL MAIS CONSISTENTE"
+                    "MUITO BAIXO"
             }
 
         output.append(
-            "PROVISIONAMENTO\n\n"
+            "PROVISIONAMENTO / RISCO\n\n"
         )
 
         output.append(
@@ -1140,7 +1462,13 @@ class MainActivity : AppCompatActivity() {
         )
 
         output.append(
-            "RISCO: $provisioning\n"
+            "NÍVEL: ${
+                result.falseSignal.level
+            }\n"
+        )
+
+        output.append(
+            "PROVISIONAMENTO: $provisioning\n"
         )
 
         output.append(
@@ -1152,7 +1480,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         output.append(
-            "CONFIANÇA: ${
+            "CONFIANÇA GERAL: ${
                 "%.1f".format(
                     realtime.confidence
                 )
@@ -1161,16 +1489,24 @@ class MainActivity : AppCompatActivity() {
 
         /*
          * ==================================
-         * TIMEFRAME ESCOLHIDO
+         * TIMEFRAME INDIVIDUAL
          * ==================================
          */
 
         output.append(
-            "ANÁLISE INDIVIDUAL — $selectedTimeframe\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
         )
 
         output.append(
-            "TENDÊNCIA: ${
+            "ANÁLISE INDIVIDUAL — $selectedTimeframe\n"
+        )
+
+        output.append(
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+        )
+
+        output.append(
+            "DIREÇÃO: ${
                 metricDirection(
                     selectedMetrics
                 )
@@ -1282,7 +1618,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         output.append(
-            "PADRÃO DE CANDLE: ${
+            "PADRÃO CANDLE: ${
                 "%.1f".format(
                     selectedMetrics.candlePattern
                 )
@@ -1315,85 +1651,207 @@ class MainActivity : AppCompatActivity() {
 
         /*
          * ==================================
-         * ANÁLISE GERAL
+         * PROBABILIDADE GERAL
          * ==================================
          */
 
+        val generalProbability =
+            calculateGeneralProbability(
+                timeframeProbabilities
+            )
+
         output.append(
-            "ANÁLISE GERAL MULTI-TIMEFRAME\n\n"
+            "━━━━━━━━━━━━━━━━━━━━\n"
         )
 
         output.append(
-            "REGIME: ${
-                realtime.regime
-            }\n"
+            "PROBABILIDADE GERAL\n"
         )
 
         output.append(
-            "SCORE: ${
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+        )
+
+        output.append(
+            "COMPRA: ${
                 "%.1f".format(
-                    realtime.score
+                    generalProbability.first
                 )
-            }\n"
+            }%\n"
         )
 
         output.append(
-            "MTF: ${
+            "VENDA: ${
                 "%.1f".format(
-                    realtime.mtfConfluence
+                    generalProbability.second
+                )
+            }%\n"
+        )
+
+        output.append(
+            "NEUTRO: ${
+                "%.1f".format(
+                    generalProbability.third
                 )
             }%\n\n"
         )
 
         /*
          * ==================================
-         * DIA / SEMANA / MÊS
+         * TODOS OS TIMEFRAMES
          * ==================================
          */
 
         output.append(
-            "VISÃO TEMPORAL\n\n"
+            "LEITURA POR TIMEFRAME\n\n"
         )
 
-        output.append(
-            buildHorizonSummary(
-                candles,
-                "DIA"
+        for (
+            timeframe in listOf(
+                "M1",
+                "M5",
+                "M15",
+                "M30",
+                "H1",
+                "H4",
+                "D1"
             )
-        )
+        ) {
 
-        output.append(
-            buildHorizonSummary(
-                candles,
-                "SEMANA"
-            )
-        )
+            val probability =
+                timeframeProbabilities[
+                    timeframe
+                ]
 
-        output.append(
-            buildHorizonSummary(
-                candles,
-                "MÊS"
+            if (
+                probability == null
+            ) {
+                output.append(
+                    "$timeframe: SEM DADOS\n"
+                )
+                continue
+            }
+
+            output.append(
+                "$timeframe → ${
+                    probability.directionalBias
+                } | C ${
+                    "%.1f".format(
+                        probability.buyProbability
+                    )
+                }% | V ${
+                    "%.1f".format(
+                        probability.sellProbability
+                    )
+                }% | N ${
+                    "%.1f".format(
+                        probability.neutralProbability
+                    )
+                }%\n"
             )
-        )
+        }
 
         /*
          * ==================================
-         * SEQUÊNCIA
+         * VISÃO DO HORIZONTE
          * ==================================
          */
 
         output.append(
-            "\nSEQUÊNCIA DO MOTOR\n\n"
+            "\n━━━━━━━━━━━━━━━━━━━━\n"
         )
 
         output.append(
-            "ESTÁGIO: ${
+            "HORIZONTE: $selectedHorizon\n"
+        )
+
+        output.append(
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+        )
+
+        when (
+            selectedHorizon
+        ) {
+
+            "DIA" -> {
+
+                output.append(
+                    buildHorizonSummary(
+                        candles,
+                        "DIA"
+                    )
+                )
+            }
+
+            "SEMANA" -> {
+
+                output.append(
+                    buildHorizonSummary(
+                        candles,
+                        "SEMANA"
+                    )
+                )
+            }
+
+            "MÊS" -> {
+
+                output.append(
+                    buildHorizonSummary(
+                        candles,
+                        "MÊS"
+                    )
+                )
+            }
+
+            else -> {
+
+                output.append(
+                    buildHorizonSummary(
+                        candles,
+                        "DIA"
+                    )
+                )
+
+                output.append("\n")
+
+                output.append(
+                    buildHorizonSummary(
+                        candles,
+                        "SEMANA"
+                    )
+                )
+
+                output.append("\n")
+
+                output.append(
+                    buildHorizonSummary(
+                        candles,
+                        "MÊS"
+                    )
+                )
+            }
+        }
+
+        /*
+         * ==================================
+         * REGIME / SEQUÊNCIA
+         * ==================================
+         */
+
+        output.append(
+            "\nREGIME: ${
+                realtime.regime
+            }\n"
+        )
+
+        output.append(
+            "SEQUÊNCIA: ${
                 result.sequence.stage
             }\n"
         )
 
         output.append(
-            "CONFIRMADA: ${
+            "SEQUÊNCIA CONFIRMADA: ${
                 if (
                     result.sequence.confirmed
                 ) {
@@ -1437,6 +1895,10 @@ class MainActivity : AppCompatActivity() {
         )
 
         output.append(
+            "CANDLES: CACHE + ATUALIZAÇÃO\n"
+        )
+
+        output.append(
             "EXECUÇÃO DE ORDENS: DESATIVADA\n"
         )
 
@@ -1446,6 +1908,12 @@ class MainActivity : AppCompatActivity() {
 
         return output.toString()
     }
+
+    /*
+     * ==================================================
+     * DIREÇÃO DO TIMEFRAME
+     * ==================================================
+     */
 
     private fun metricDirection(
         metrics:
@@ -1497,6 +1965,100 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /*
+     * ==================================================
+     * PROBABILIDADE GERAL
+     * ==================================================
+     */
+
+    private fun calculateGeneralProbability(
+        probabilities:
+            Map<String, ProbabilityResult>
+    ): Triple<Double, Double, Double> {
+
+        if (
+            probabilities.isEmpty()
+        ) {
+            return Triple(
+                33.33,
+                33.33,
+                33.34
+            )
+        }
+
+        val weights =
+            mapOf(
+                "M1" to 0.05,
+                "M5" to 0.10,
+                "M15" to 0.15,
+                "M30" to 0.15,
+                "H1" to 0.20,
+                "H4" to 0.20,
+                "D1" to 0.15
+            )
+
+        var buy =
+            0.0
+
+        var sell =
+            0.0
+
+        var neutral =
+            0.0
+
+        var total =
+            0.0
+
+        for (
+            (timeframe, probability)
+            in probabilities
+        ) {
+
+            val weight =
+                weights[
+                    timeframe
+                ]
+                    ?: 0.05
+
+            buy +=
+                probability.buyProbability *
+                    weight
+
+            sell +=
+                probability.sellProbability *
+                    weight
+
+            neutral +=
+                probability.neutralProbability *
+                    weight
+
+            total +=
+                weight
+        }
+
+        if (
+            total <= 0.0
+        ) {
+            return Triple(
+                33.33,
+                33.33,
+                33.34
+            )
+        }
+
+        return Triple(
+            buy / total,
+            sell / total,
+            neutral / total
+        )
+    }
+
+    /*
+     * ==================================================
+     * DIA / SEMANA / MÊS
+     * ==================================================
+     */
+
     private fun buildHorizonSummary(
         candles:
             Map<String, List<MarketCandle>>,
@@ -1505,38 +2067,56 @@ class MainActivity : AppCompatActivity() {
             String
     ): String {
 
-        val daily =
-            candles["D1"]
+        val timeframe =
+            when (horizon) {
+
+                "DIA" ->
+                    "H1"
+
+                "SEMANA" ->
+                    "H4"
+
+                "MÊS" ->
+                    "D1"
+
+                else ->
+                    "D1"
+            }
+
+        val data =
+            candles[
+                timeframe
+            ]
                 ?: emptyList()
 
         if (
-            daily.isEmpty()
+            data.isEmpty()
         ) {
 
-            return "$horizon: SEM DADOS D1\n"
+            return "$horizon: SEM DADOS $timeframe\n"
         }
 
         val amount =
             when (horizon) {
 
                 "DIA" ->
-                    1
+                    24
 
                 "SEMANA" ->
-                    5
+                    30
 
                 "MÊS" ->
-                    20
+                    30
 
                 else ->
-                    20
+                    30
             }
 
         val window =
-            daily.takeLast(
+            data.takeLast(
                 min(
                     amount,
-                    daily.size
+                    data.size
                 )
             )
 
@@ -1595,7 +2175,11 @@ class MainActivity : AppCompatActivity() {
         return buildString {
 
             append(
-                "$horizon: $direction\n"
+                "$horizon → $direction\n"
+            )
+
+            append(
+                "Timeframe-base: $timeframe\n"
             )
 
             append(
