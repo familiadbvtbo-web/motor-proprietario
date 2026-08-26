@@ -7,21 +7,14 @@ data class FinalMotorInput(
     val sequenceStage: SequenceStage,
     val falseSignal: FalseSignalInput,
 
-    /*
-     * Resultado do motor probabilístico.
-     */
     val probability: ProbabilityResult? = null,
 
-    /*
-     * Resultado do motor determinístico.
-     *
-     * Opcional nesta etapa para manter
-     * compatibilidade com o projeto atual.
-     */
     val deterministicBuy: Double = 50.0,
     val deterministicSell: Double = 50.0,
     val deterministicNeutral: Double = 50.0,
-    val deterministicConfidence: Double = 50.0
+    val deterministicConfidence: Double = 50.0,
+
+    val deterministicRisk: DeterministicRiskResult? = null
 )
 
 data class FinalMotorResult(
@@ -31,16 +24,15 @@ data class FinalMotorResult(
     val sequence: SequenceResult,
     val decision: DecisionResult,
     val marketUsable: Boolean,
+
     val probability: ProbabilityResult? = null,
 
-    /*
-     * Resultado determinístico utilizado
-     * na decisão final.
-     */
     val deterministicBuy: Double = 50.0,
     val deterministicSell: Double = 50.0,
     val deterministicNeutral: Double = 50.0,
-    val deterministicConfidence: Double = 50.0
+    val deterministicConfidence: Double = 50.0,
+
+    val deterministicRisk: DeterministicRiskResult? = null
 )
 
 object FinalMotorEngine {
@@ -69,6 +61,7 @@ object FinalMotorEngine {
         val fsi =
             FsiEngine.calculate(
                 FsiInput(
+
                     structureContradiction =
                         input.falseSignal
                             .structureContradiction,
@@ -111,6 +104,7 @@ object FinalMotorEngine {
         val score =
             ScoreEngine.calculate(
                 ScoreInput(
+
                     structure =
                         input.market.structure,
 
@@ -126,9 +120,6 @@ object FinalMotorEngine {
                     volatility =
                         input.market.volatility,
 
-                    /*
-                     * O FSI é risco.
-                     */
                     fsi =
                         fsi.value,
 
@@ -151,23 +142,60 @@ object FinalMotorEngine {
 
         /*
          * ==================================
-         * 6. RISCO FINAL DE FALSO SINAL
+         * 6. RISCO DETERMINÍSTICO
          * ==================================
          *
-         * O maior valor entre FSI e o motor
-         * de falso sinal passa a proteger
-         * a decisão.
+         * Se já foi calculado pelo chamador,
+         * utilizamos diretamente.
+         *
+         * Isso evita recalcular a mesma camada
+         * e permite que a decisão final utilize
+         * o mesmo risco apresentado na interface.
          */
 
-        val falseSignalRisk =
+        val deterministicRisk =
+            input.deterministicRisk
+
+        /*
+         * ==================================
+         * 7. RISCO FINAL
+         * ==================================
+         *
+         * O maior risco entre:
+         *
+         * FSI
+         * Falso Sinal
+         * Determinismo
+         *
+         * protege a decisão.
+         */
+
+        val finalFalseSignalRisk =
             maxOf(
+
                 fsi.value,
-                falseSignal.risk
+
+                falseSignal.risk,
+
+                deterministicRisk
+                    ?.falseSignalRisk
+                    ?: 0.0
             )
 
         /*
          * ==================================
-         * 7. DECISÃO FINAL
+         * 8. BLOQUEIO DETERMINÍSTICO
+         * ==================================
+         */
+
+        val deterministicBlocked =
+            deterministicRisk
+                ?.blocked
+                ?: false
+
+        /*
+         * ==================================
+         * 9. DECISÃO FINAL
          * ==================================
          */
 
@@ -177,9 +205,11 @@ object FinalMotorEngine {
                 /*
                  * Dados inválidos.
                  */
+
                 !marketUsable -> {
 
                     DecisionResult(
+
                         decision =
                             "AGUARDAR",
 
@@ -208,20 +238,67 @@ object FinalMotorEngine {
                             input.deterministicConfidence,
 
                         falseSignalRisk =
-                            falseSignalRisk,
+                            finalFalseSignalRisk,
 
                         mtfConfluence =
-                            input.market.multiTimeframe
+                            input.market
+                                .multiTimeframe
+                    )
+                }
+
+                /*
+                 * Risco determinístico crítico.
+                 */
+
+                deterministicBlocked -> {
+
+                    DecisionResult(
+
+                        decision =
+                            "AGUARDAR",
+
+                        reason =
+                            "DETERMINISTIC_RISK_BLOCK",
+
+                        executableInPaper =
+                            false,
+
+                        buyProbability =
+                            input.probability
+                                ?.buyProbability
+                                ?: 0.0,
+
+                        sellProbability =
+                            input.probability
+                                ?.sellProbability
+                                ?: 0.0,
+
+                        neutralProbability =
+                            input.probability
+                                ?.neutralProbability
+                                ?: 100.0,
+
+                        deterministicConfidence =
+                            input.deterministicConfidence,
+
+                        falseSignalRisk =
+                            finalFalseSignalRisk,
+
+                        mtfConfluence =
+                            input.market
+                                .multiTimeframe
                     )
                 }
 
                 /*
                  * Falso sinal crítico.
                  */
+
                 falseSignal.blocked ||
-                    fsi.blocked -> {
+                fsi.blocked -> {
 
                     DecisionResult(
+
                         decision =
                             "AGUARDAR",
 
@@ -250,26 +327,33 @@ object FinalMotorEngine {
                             input.deterministicConfidence,
 
                         falseSignalRisk =
-                            falseSignalRisk,
+                            finalFalseSignalRisk,
 
                         mtfConfluence =
-                            input.market.multiTimeframe
+                            input.market
+                                .multiTimeframe
                     )
                 }
 
                 /*
-                 * Caso normal:
+                 * Caso normal.
                  *
-                 * Probabilidade +
-                 * Determinismo +
-                 * FSI +
-                 * MTF +
-                 * Sequência.
+                 * A decisão recebe:
+                 *
+                 * Score
+                 * Probabilidade
+                 * Determinismo
+                 * FSI
+                 * MTF
+                 * Sequência
                  */
+
                 else -> {
 
                     DecisionEngine.evaluate(
+
                         DecisionInput(
+
                             score =
                                 score.score,
 
@@ -295,10 +379,11 @@ object FinalMotorEngine {
                                 input.deterministicConfidence,
 
                             falseSignalRisk =
-                                falseSignalRisk,
+                                finalFalseSignalRisk,
 
                             mtfConfluence =
-                                input.market.multiTimeframe
+                                input.market
+                                    .multiTimeframe
                         )
                     )
                 }
@@ -306,7 +391,7 @@ object FinalMotorEngine {
 
         /*
          * ==================================
-         * 8. RESULTADO COMPLETO
+         * 10. RESULTADO COMPLETO
          * ==================================
          */
 
@@ -343,7 +428,10 @@ object FinalMotorEngine {
                 input.deterministicNeutral,
 
             deterministicConfidence =
-                input.deterministicConfidence
+                input.deterministicConfidence,
+
+            deterministicRisk =
+                deterministicRisk
         )
     }
 }
