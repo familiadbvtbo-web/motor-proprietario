@@ -22,7 +22,7 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var assetSpinner: Spinner
     private lateinit var timeframeSpinner: Spinner
-    private lateinit var horizonSpinner: Spinner
+    private lateinit var horizonSpinner
 
     private val handler =
         Handler(Looper.getMainLooper())
@@ -48,8 +48,14 @@ class MainActivity : AppCompatActivity() {
     private var analyzing =
         false
 
+    private var sequenceStage =
+        SequenceStage.S0
+
     private val candleCache =
-        LinkedHashMap<String, List<MarketCandle>>()
+        LinkedHashMap<
+            String,
+            List<MarketCandle>
+        >()
 
     private val lastCandleUpdate =
         HashMap<String, Long>()
@@ -71,9 +77,6 @@ class MainActivity : AppCompatActivity() {
     private val candleApiBackoffMs =
         65_000L
 
-    private var sequenceStage =
-        SequenceStage.S0
-
     private val refreshTask =
         object : Runnable {
 
@@ -83,7 +86,7 @@ class MainActivity : AppCompatActivity() {
 
                 handler.postDelayed(
                     this,
-                    5000L
+                    5_000L
                 )
             }
         }
@@ -150,10 +153,10 @@ class MainActivity : AppCompatActivity() {
                     LinearLayout.VERTICAL
 
                 setPadding(
-                    dp(20),
+                    dp(18),
                     dp(25),
-                    dp(20),
-                    dp(20)
+                    dp(18),
+                    dp(25)
                 )
 
                 setBackgroundColor(
@@ -177,27 +180,16 @@ class MainActivity : AppCompatActivity() {
 
         val subtitle =
             text(
-                "PROBABILIDADE • PROVISIONAMENTO • SINAIS FALSOS",
-                14f,
+                "PROBABILIDADE + DETERMINISMO",
+                15f,
                 true
             )
 
         subtitle.gravity =
             Gravity.CENTER_HORIZONTAL
 
-        statusView =
-            text(
-                "CONECTANDO..."
-            )
-
         root.addView(title)
         root.addView(subtitle)
-
-        /*
-         * ==============================
-         * ATIVO
-         * ==============================
-         */
 
         root.addView(
             text(
@@ -276,15 +268,9 @@ class MainActivity : AppCompatActivity() {
             assetSpinner
         )
 
-        /*
-         * ==============================
-         * TIMEFRAME
-         * ==============================
-         */
-
         root.addView(
             text(
-                "TIMEFRAME INDIVIDUAL",
+                "TIMEFRAME DE ANÁLISE",
                 16f,
                 true
             )
@@ -344,15 +330,9 @@ class MainActivity : AppCompatActivity() {
             timeframeSpinner
         )
 
-        /*
-         * ==============================
-         * HORIZONTE
-         * ==============================
-         */
-
         root.addView(
             text(
-                "VISÃO DO MOTOR",
+                "VISÃO TEMPORAL",
                 16f,
                 true
             )
@@ -405,21 +385,22 @@ class MainActivity : AppCompatActivity() {
             horizonSpinner
         )
 
-        /*
-         * ==============================
-         * STATUS
-         * ==============================
-         */
+        root.addView(
+            text(
+                "STATUS",
+                17f,
+                true
+            )
+        )
+
+        statusView =
+            text(
+                "CONECTANDO..."
+            )
 
         root.addView(
             statusView
         )
-
-        /*
-         * ==============================
-         * ATIVO / PREÇO
-         * ==============================
-         */
 
         root.addView(
             text(
@@ -432,7 +413,7 @@ class MainActivity : AppCompatActivity() {
         assetView =
             text(
                 selectedAsset,
-                22f,
+                23f,
                 true
             )
 
@@ -457,23 +438,17 @@ class MainActivity : AppCompatActivity() {
             priceView
         )
 
-        /*
-         * ==============================
-         * ANÁLISE
-         * ==============================
-         */
-
         root.addView(
             text(
                 "ANÁLISE DO MOTOR",
-                20f,
+                21f,
                 true
             )
         )
 
         analysisView =
             text(
-                "Aguardando dados..."
+                "Aguardando dados reais..."
             )
 
         root.addView(
@@ -482,12 +457,11 @@ class MainActivity : AppCompatActivity() {
 
         val scroll =
             ScrollView(this).apply {
+
                 addView(root)
             }
 
-        setContentView(
-            scroll
-        )
+        setContentView(scroll)
     }
 
     private fun resetForNewAsset() {
@@ -521,6 +495,7 @@ class MainActivity : AppCompatActivity() {
     private fun connectRealtime() {
 
         quoteClient.connect(
+
             symbols =
                 listOf(
                     selectedAsset
@@ -532,6 +507,15 @@ class MainActivity : AppCompatActivity() {
                     quote
 
                 runOnUiThread {
+
+                    assetView.text =
+                        quote.symbol
+
+                    priceView.text =
+                        String.format(
+                            "%.5f",
+                            quote.price
+                        )
 
                     statusView.text =
                         if (
@@ -553,15 +537,6 @@ class MainActivity : AppCompatActivity() {
                             "WEBSOCKET: ATIVO\n" +
                             "EXECUÇÃO: DESATIVADA"
                         }
-
-                    assetView.text =
-                        quote.symbol
-
-                    priceView.text =
-                        String.format(
-                            "%.5f",
-                            quote.price
-                        )
                 }
             },
 
@@ -600,128 +575,9 @@ class MainActivity : AppCompatActivity() {
                 val now =
                     System.currentTimeMillis()
 
-                val apiBlocked =
-                    now <
-                        candleApiBackoffUntil
-
-                if (!apiBlocked) {
-
-                    val timeframes =
-                        listOf(
-                            "M1",
-                            "M5",
-                            "M15",
-                            "M30",
-                            "H1",
-                            "H4",
-                            "D1"
-                        )
-
-                    for (
-                        timeframe in timeframes
-                    ) {
-
-                        val interval =
-                            candleIntervals[
-                                timeframe
-                            ]
-                                ?: 60_000L
-
-                        val lastUpdate =
-                            lastCandleUpdate[
-                                timeframe
-                            ]
-                                ?: 0L
-
-                        val hasCache =
-                            candleCache[
-                                timeframe
-                            ] != null
-
-                        val shouldUpdate =
-                            !hasCache ||
-                            now -
-                                lastUpdate >=
-                            interval
-
-                        if (
-                            !shouldUpdate
-                        ) {
-                            continue
-                        }
-
-                        try {
-
-                            val freshCandles =
-                                candleClient.getCandles(
-                                    symbol =
-                                        selectedAsset,
-
-                                    timeframe =
-                                        timeframe,
-
-                                    outputSize =
-                                        200
-                                )
-
-                            if (
-                                freshCandles.isNotEmpty()
-                            ) {
-
-                                synchronized(
-                                    candleCache
-                                ) {
-
-                                    candleCache[
-                                        timeframe
-                                    ] =
-                                        freshCandles
-                                }
-
-                                lastCandleUpdate[
-                                    timeframe
-                                ] =
-                                    now
-                            }
-
-                            Thread.sleep(
-                                700L
-                            )
-
-                        } catch (
-                            error: Exception
-                        ) {
-
-                            val message =
-                                error.message
-                                    ?: ""
-
-                            if (
-                                message.contains(
-                                    "429",
-                                    ignoreCase = true
-                                )
-                            ) {
-
-                                candleApiBackoffUntil =
-                                    System.currentTimeMillis() +
-                                        candleApiBackoffMs
-
-                                runOnUiThread {
-
-                                    statusView.text =
-                                        "● ONLINE\n" +
-                                        "FONTE: TWELVE DATA\n" +
-                                        "WEBSOCKET: ATIVO\n" +
-                                        "CANDLES: CACHE\n" +
-                                        "API: LIMITE TEMPORÁRIO"
-                                }
-
-                                break
-                            }
-                        }
-                    }
-                }
+                updateCandles(
+                    now
+                )
 
                 val candles =
                     LinkedHashMap<
@@ -732,6 +588,7 @@ class MainActivity : AppCompatActivity() {
                 synchronized(
                     candleCache
                 ) {
+
                     candles.putAll(
                         candleCache
                     )
@@ -750,14 +607,9 @@ class MainActivity : AppCompatActivity() {
                     return@thread
                 }
 
-                /*
-                 * ==============================
-                 * MOTOR QUANTITATIVO GERAL
-                 * ==============================
-                 */
-
                 val realtime =
                     RealtimeMarketAnalyzer.analyze(
+
                         symbol =
                             selectedAsset,
 
@@ -780,12 +632,6 @@ class MainActivity : AppCompatActivity() {
                             now
                     )
 
-                /*
-                 * ==============================
-                 * TIMEFRAME ESCOLHIDO
-                 * ==============================
-                 */
-
                 val selectedMetrics =
                     realtime.metrics[
                         selectedTimeframe
@@ -795,14 +641,221 @@ class MainActivity : AppCompatActivity() {
                         ]
                         ?: realtime.metrics.values.first()
 
-                /*
-                 * ==============================
-                 * SEQUÊNCIA
-                 * ==============================
-                 */
+                val higherMetrics =
+                    realtime.metrics
+                        .filterKeys {
+                            timeframeRank(it) >
+                                timeframeRank(
+                                    selectedTimeframe
+                                )
+                        }
+                        .values
+                        .toList()
+
+                val deterministic =
+                    DeterministicEngine.calculate(
+
+                        DeterministicInput(
+
+                            metrics =
+                                selectedMetrics,
+
+                            mtfConfluence =
+                                realtime.mtfConfluence,
+
+                            falseSignalRisk =
+                                realtime.fsi,
+
+                            currentPrice =
+                                quote.price,
+
+                            higherTimeframes =
+                                higherMetrics
+                        )
+                    )
+
+                val probability =
+                    ProbabilityEngine.calculate(
+
+                        ProbabilityInput(
+
+                            metrics =
+                                selectedMetrics,
+
+                            mtfConfluence =
+                                realtime.mtfConfluence,
+
+                            falseSignalRisk =
+                                realtime.fsi,
+
+                            fibonacciBullish =
+                                fibonacciEvidence(
+                                    candles[
+                                        selectedTimeframe
+                                    ],
+                                    true
+                                ),
+
+                            fibonacciBearish =
+                                fibonacciEvidence(
+                                    candles[
+                                        selectedTimeframe
+                                    ],
+                                    false
+                                ),
+
+                            institutionalBullish =
+                                deterministic.buyScore,
+
+                            institutionalBearish =
+                                deterministic.sellScore
+                        )
+                    )
+
+                val finalProbabilities =
+                    combineFinalProbabilities(
+
+                        probability,
+                        deterministic,
+                        realtime.fsi,
+                        realtime.mtfConfluence
+                    )
+
+                val direction =
+                    finalDirection(
+                        finalProbabilities
+                    )
+
+                val bestTimeframe =
+                    findBestTimeframe(
+                        realtime,
+                        candles
+                    )
+
+                val bestMetrics =
+                    realtime.metrics[
+                        bestTimeframe
+                    ]
+                        ?: selectedMetrics
+
+                val bestDeterministic =
+                    DeterministicEngine.calculate(
+
+                        DeterministicInput(
+
+                            metrics =
+                                bestMetrics,
+
+                            mtfConfluence =
+                                realtime.mtfConfluence,
+
+                            falseSignalRisk =
+                                realtime.fsi,
+
+                            currentPrice =
+                                quote.price,
+
+                            higherTimeframes =
+                                realtime.metrics
+                                    .filterKeys {
+                                        timeframeRank(it) >
+                                            timeframeRank(
+                                                bestTimeframe
+                                            )
+                                    }
+                                    .values
+                                    .toList()
+                        )
+                    )
+
+                val bestProbability =
+                    ProbabilityEngine.calculate(
+
+                        ProbabilityInput(
+
+                            metrics =
+                                bestMetrics,
+
+                            mtfConfluence =
+                                realtime.mtfConfluence,
+
+                            falseSignalRisk =
+                                realtime.fsi,
+
+                            fibonacciBullish =
+                                fibonacciEvidence(
+                                    candles[
+                                        bestTimeframe
+                                    ],
+                                    true
+                                ),
+
+                            fibonacciBearish =
+                                fibonacciEvidence(
+                                    candles[
+                                        bestTimeframe
+                                    ],
+                                    false
+                                ),
+
+                            institutionalBullish =
+                                bestDeterministic.buyScore,
+
+                            institutionalBearish =
+                                bestDeterministic.sellScore
+                        )
+                    )
+
+                val bestFinal =
+                    combineFinalProbabilities(
+
+                        bestProbability,
+                        bestDeterministic,
+                        realtime.fsi,
+                        realtime.mtfConfluence
+                    )
+
+                val bestDirection =
+                    finalDirection(
+                        bestFinal
+                    )
+
+                val entryPlan =
+                    EntryPlanEngine.calculate(
+
+                        EntryPlanInput(
+
+                            direction =
+                                bestDirection,
+
+                            currentPrice =
+                                quote.price,
+
+                            metrics =
+                                bestMetrics,
+
+                            timeframe =
+                                bestTimeframe,
+
+                            probability =
+                                max(
+                                    bestFinal.first,
+                                    bestFinal.second
+                                ),
+
+                            deterministicConfidence =
+                                bestDeterministic.confidence,
+
+                            falseSignalRisk =
+                                realtime.fsi,
+
+                            now =
+                                now
+                        )
+                    )
 
                 val signalDetected =
-                    realtime.direction !=
+                    bestDirection !=
                         "NEUTRO"
 
                 val confirmation =
@@ -811,20 +864,22 @@ class MainActivity : AppCompatActivity() {
 
                 val continuation =
                     when (
-                        realtime.direction
+                        bestDirection
                     ) {
 
                         "COMPRA" ->
-                            selectedMetrics.ema9 >
-                                selectedMetrics.ema21 &&
-                            selectedMetrics.macd >
-                                selectedMetrics.macdSignal
+
+                            bestMetrics.ema9 >
+                                bestMetrics.ema21 &&
+                            bestMetrics.macd >
+                                bestMetrics.macdSignal
 
                         "VENDA" ->
-                            selectedMetrics.ema9 <
-                                selectedMetrics.ema21 &&
-                            selectedMetrics.macd <
-                                selectedMetrics.macdSignal
+
+                            bestMetrics.ema9 <
+                                bestMetrics.ema21 &&
+                            bestMetrics.macd <
+                                bestMetrics.macdSignal
 
                         else ->
                             false
@@ -832,201 +887,68 @@ class MainActivity : AppCompatActivity() {
 
                 val invalidated =
                     realtime.fsi >=
-                        70.0 ||
-                        realtime.market.dataQuality !=
+                        80.0 ||
+                    realtime.market.dataQuality !=
                         "GOOD"
-
-                val sequenceInput =
-                    SequenceInput(
-                        signalDetected =
-                            signalDetected,
-
-                        confirmation =
-                            confirmation,
-
-                        continuation =
-                            continuation,
-
-                        invalidated =
-                            invalidated
-                    )
 
                 val sequence =
                     SequenceEngine.advance(
+
                         sequenceStage,
-                        sequenceInput
+
+                        SequenceInput(
+
+                            signalDetected =
+                                signalDetected,
+
+                            confirmation =
+                                confirmation,
+
+                            continuation =
+                                continuation,
+
+                            invalidated =
+                                invalidated
+                        )
                     )
 
                 sequenceStage =
                     sequence.stage
 
-                /*
-                 * ==============================
-                 * FALSO SINAL
-                 * ==============================
-                 */
-
-                val falseSignalInput =
-                    FalseSignalInput(
-                        structureContradiction =
-                            abs(
-                                selectedMetrics.structure -
-                                    realtime.mtfConfluence
-                            ),
-
-                        momentumDivergence =
-                            abs(
-                                selectedMetrics.momentum -
-                                    selectedMetrics.rsi
-                            ),
-
-                        volumeMismatch =
-                            abs(
-                                selectedMetrics.volume -
-                                    selectedMetrics.momentum
-                            ),
-
-                        confirmationFailure =
-                            100.0 -
-                                realtime.mtfConfluence,
-
-                        timeframeConflict =
-                            100.0 -
-                                realtime.mtfConfluence
-                    )
-
-                /*
-                 * ==============================
-                 * MOTOR FINAL
-                 * ==============================
-                 */
-
-                val finalInput =
-                    FinalMotorInput(
-                        market =
-                            realtime.market,
-
-                        now =
-                            now,
-
-                        sequence =
-                            sequenceInput,
-
-                        sequenceStage =
-                            sequence.stage,
-
-                        falseSignal =
-                            falseSignalInput
-                    )
-
-                val finalResult =
-                    FinalMotorEngine.evaluate(
-                        finalInput
-                    )
-
-                /*
-                 * ==============================
-                 * PROBABILIDADE DO TIMEFRAME
-                 * ==============================
-                 */
-
-                val selectedProbability =
-                    calculateProbability(
-                        metrics =
-                            selectedMetrics,
-
-                        mtfConfluence =
-                            realtime.mtfConfluence,
-
-                        falseSignalRisk =
-                            realtime.fsi,
-
-                        candles =
-                            candles[selectedTimeframe]
-                                ?: emptyList()
-                    )
-
-                /*
-                 * ==============================
-                 * PROBABILIDADES POR TIMEFRAME
-                 * ==============================
-                 */
-
-                val timeframeProbabilities =
-                    LinkedHashMap<
-                        String,
-                        ProbabilityResult
-                    >()
-
-                for (
-                    timeframe in listOf(
-                        "M1",
-                        "M5",
-                        "M15",
-                        "M30",
-                        "H1",
-                        "H4",
-                        "D1"
-                    )
-                ) {
-
-                    val metric =
-                        realtime.metrics[
-                            timeframe
-                        ]
-                            ?: continue
-
-                    val probability =
-                        calculateProbability(
-                            metrics =
-                                metric,
-
-                            mtfConfluence =
-                                realtime.mtfConfluence,
-
-                            falseSignalRisk =
-                                realtime.fsi,
-
-                            candles =
-                                candles[
-                                    timeframe
-                                ]
-                                    ?: emptyList()
-                        )
-
-                    timeframeProbabilities[
-                        timeframe
-                    ] =
-                        probability
-                }
-
-                /*
-                 * ==============================
-                 * EXIBIÇÃO
-                 * ==============================
-                 */
-
                 runOnUiThread {
 
                     analysisView.text =
-                        buildAnalysisText(
+                        buildAnalysis(
+
                             realtime =
                                 realtime,
 
-                            result =
-                                finalResult,
+                            deterministic =
+                                bestDeterministic,
+
+                            probability =
+                                bestProbability,
+
+                            finalProbabilities =
+                                bestFinal,
+
+                            direction =
+                                bestDirection,
+
+                            bestTimeframe =
+                                bestTimeframe,
+
+                            metrics =
+                                bestMetrics,
+
+                            entryPlan =
+                                entryPlan,
+
+                            sequence =
+                                sequence,
 
                             candles =
-                                candles,
-
-                            selectedMetrics =
-                                selectedMetrics,
-
-                            selectedProbability =
-                                selectedProbability,
-
-                            timeframeProbabilities =
-                                timeframeProbabilities
+                                candles
                         )
                 }
 
@@ -1052,88 +974,510 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /*
-     * ==================================================
-     * PROBABILIDADE
-     * ==================================================
-     */
+    private fun updateCandles(
+        now: Long
+    ) {
 
-    private fun calculateProbability(
-        metrics:
-            QuantMetrics,
+        if (
+            now <
+                candleApiBackoffUntil
+        ) {
+            return
+        }
 
-        mtfConfluence:
-            Double,
-
-        falseSignalRisk:
-            Double,
-
-        candles:
-            List<MarketCandle>
-    ): ProbabilityResult {
-
-        val fibonacci =
-            calculateFibonacciEvidence(
-                candles
+        val timeframes =
+            listOf(
+                "M1",
+                "M5",
+                "M15",
+                "M30",
+                "H1",
+                "H4",
+                "D1"
             )
+
+        for (
+            timeframe in timeframes
+        ) {
+
+            val interval =
+                candleIntervals[
+                    timeframe
+                ]
+                    ?: 60_000L
+
+            val last =
+                lastCandleUpdate[
+                    timeframe
+                ]
+                    ?: 0L
+
+            val cached =
+                candleCache[
+                    timeframe
+                ]
+
+            if (
+                cached != null &&
+                now - last <
+                    interval
+            ) {
+                continue
+            }
+
+            try {
+
+                val fresh =
+                    candleClient.getCandles(
+
+                        symbol =
+                            selectedAsset,
+
+                        timeframe =
+                            timeframe,
+
+                        outputSize =
+                            200
+                    )
+
+                if (
+                    fresh.isNotEmpty()
+                ) {
+
+                    synchronized(
+                        candleCache
+                    ) {
+
+                        candleCache[
+                            timeframe
+                        ] =
+                            fresh
+                    }
+
+                    lastCandleUpdate[
+                        timeframe
+                    ] =
+                        now
+                }
+
+                Thread.sleep(
+                    700L
+                )
+
+            } catch (
+                error: Exception
+            ) {
+
+                val message =
+                    error.message
+                        ?: ""
+
+                if (
+                    message.contains(
+                        "429",
+                        ignoreCase = true
+                    )
+                ) {
+
+                    candleApiBackoffUntil =
+                        System.currentTimeMillis() +
+                            candleApiBackoffMs
+
+                    runOnUiThread {
+
+                        statusView.text =
+                            "● ONLINE\n" +
+                            "FONTE: TWELVE DATA\n" +
+                            "WEBSOCKET: ATIVO\n" +
+                            "CANDLES: CACHE\n" +
+                            "API: LIMITE TEMPORÁRIO"
+                    }
+
+                    break
+                }
+            }
+        }
+    }
+
+    private fun combineFinalProbabilities(
+        probability:
+            ProbabilityResult,
+
+        deterministic:
+            DeterministicResult,
+
+        fsi:
+            Double,
+
+        mtf:
+            Double
+    ): Triple<Double, Double, Double> {
 
         /*
-         * Não existe fluxo institucional real
-         * disponível nesta camada.
+         * Fusão inicial:
          *
-         * Portanto não inventamos dados.
+         * 55% probabilidade
+         * 45% determinismo
          *
-         * A pressão abaixo é apenas uma evidência
-         * quantitativa baseada em volume + estrutura
-         * + candle.
+         * O peso não representa taxa de acerto.
+         * Ele é um parâmetro do modelo que deverá
+         * ser calibrado posteriormente por backtest.
          */
+        var buy =
+            probability.buyProbability *
+                0.55 +
+            deterministic.buyScore *
+                0.45
 
-        val institutionalPressure =
-            calculateFlowPressure(
-                metrics
+        var sell =
+            probability.sellProbability *
+                0.55 +
+            deterministic.sellScore *
+                0.45
+
+        var neutral =
+            probability.neutralProbability *
+                0.55 +
+            deterministic.neutralScore *
+                0.45
+
+        /*
+         * FSI é risco de falso sinal.
+         *
+         * Quanto maior:
+         * menor a convicção direcional.
+         */
+        val riskFactor =
+            1.0 -
+                fsi.coerceIn(
+                    0.0,
+                    100.0
+                ) /
+                100.0
+
+        buy *=
+            0.65 +
+                riskFactor * 0.35
+
+        sell *=
+            0.65 +
+                riskFactor * 0.35
+
+        neutral +=
+            fsi *
+                0.30
+
+        /*
+         * MTF aumenta a confiabilidade
+         * quando existe concordância.
+         */
+        val mtfFactor =
+            0.85 +
+                mtf.coerceIn(
+                    0.0,
+                    100.0
+                ) /
+                100.0 *
+                0.15
+
+        buy *=
+            mtfFactor
+
+        sell *=
+            mtfFactor
+
+        neutral +=
+            (
+                100.0 -
+                    mtf
+            ) *
+                0.20
+
+        val total =
+            buy.coerceAtLeast(0.0) +
+            sell.coerceAtLeast(0.0) +
+            neutral.coerceAtLeast(0.0)
+
+        if (
+            total <= 0.0
+        ) {
+
+            return Triple(
+                33.33,
+                33.33,
+                33.34
             )
+        }
 
-        return ProbabilityEngine.calculate(
-            ProbabilityInput(
-                metrics =
-                    metrics,
+        return Triple(
 
-                mtfConfluence =
-                    mtfConfluence,
+            buy.coerceAtLeast(
+                0.0
+            ) /
+                total *
+                100.0,
 
-                falseSignalRisk =
-                    falseSignalRisk,
+            sell.coerceAtLeast(
+                0.0
+            ) /
+                total *
+                100.0,
 
-                fibonacciBullish =
-                    fibonacci.first,
-
-                fibonacciBearish =
-                    fibonacci.second,
-
-                institutionalBullish =
-                    institutionalPressure.first,
-
-                institutionalBearish =
-                    institutionalPressure.second
-            )
+            neutral.coerceAtLeast(
+                0.0
+            ) /
+                total *
+                100.0
         )
     }
 
-    /*
-     * ==================================================
-     * FIBONACCI
-     * ==================================================
-     */
+    private fun finalDirection(
+        probabilities:
+            Triple<Double, Double, Double>
+    ): String {
 
-    private fun calculateFibonacciEvidence(
+        val buy =
+            probabilities.first
+
+        val sell =
+            probabilities.second
+
+        val neutral =
+            probabilities.third
+
+        return when {
+
+            buy >= 60.0 &&
+            buy >
+                sell + 5.0 &&
+            buy >
+                neutral ->
+
+                "COMPRA"
+
+            sell >= 60.0 &&
+            sell >
+                buy + 5.0 &&
+            sell >
+                neutral ->
+
+                "VENDA"
+
+            else ->
+                "NEUTRO"
+        }
+    }
+
+    private fun findBestTimeframe(
+        realtime:
+            RealtimeAnalysis,
+
         candles:
-            List<MarketCandle>
-    ): Pair<Double, Double> {
+            Map<String, List<MarketCandle>>
+    ): String {
+
+        val candidates =
+            listOf(
+                "M5",
+                "M15",
+                "M30",
+                "H1"
+            )
+
+        var best =
+            "M15"
+
+        var bestValue =
+            Double.NEGATIVE_INFINITY
+
+        for (
+            timeframe in candidates
+        ) {
+
+            val metrics =
+                realtime.metrics[
+                    timeframe
+                ]
+                    ?: continue
+
+            val higher =
+                realtime.metrics
+                    .filterKeys {
+                        timeframeRank(it) >
+                            timeframeRank(
+                                timeframe
+                            )
+                    }
+                    .values
+                    .toList()
+
+            val deterministic =
+                DeterministicEngine.calculate(
+
+                    DeterministicInput(
+
+                        metrics =
+                            metrics,
+
+                        mtfConfluence =
+                            realtime.mtfConfluence,
+
+                        falseSignalRisk =
+                            realtime.fsi,
+
+                        currentPrice =
+                            lastQuote?.price
+                                ?: 0.0,
+
+                        higherTimeframes =
+                            higher
+                    )
+                )
+
+            val probability =
+                ProbabilityEngine.calculate(
+
+                    ProbabilityInput(
+
+                        metrics =
+                            metrics,
+
+                        mtfConfluence =
+                            realtime.mtfConfluence,
+
+                        falseSignalRisk =
+                            realtime.fsi,
+
+                        fibonacciBullish =
+                            fibonacciEvidence(
+                                candles[
+                                    timeframe
+                                ],
+                                true
+                            ),
+
+                        fibonacciBearish =
+                            fibonacciEvidence(
+                                candles[
+                                    timeframe
+                                ],
+                                false
+                            ),
+
+                        institutionalBullish =
+                            deterministic.buyScore,
+
+                        institutionalBearish =
+                            deterministic.sellScore
+                    )
+                )
+
+            val final =
+                combineFinalProbabilities(
+
+                    probability,
+                    deterministic,
+                    realtime.fsi,
+                    realtime.mtfConfluence
+                )
+
+            val directional =
+                max(
+                    final.first,
+                    final.second
+                )
+
+            val score =
+                directional +
+                    deterministic.confidence *
+                    0.20 +
+                    deterministic.confirmation *
+                    0.15 -
+                    final.third *
+                    0.35
+
+            val timeframeBonus =
+                when (
+                    timeframe
+                ) {
+
+                    "M15" ->
+                        5.0
+
+                    "M30" ->
+                        4.0
+
+                    "H1" ->
+                        2.0
+
+                    else ->
+                        0.0
+                }
+
+            val value =
+                score +
+                    timeframeBonus
+
+            if (
+                value >
+                    bestValue
+            ) {
+
+                bestValue =
+                    value
+
+                best =
+                    timeframe
+            }
+        }
+
+        return best
+    }
+
+    private fun timeframeRank(
+        timeframe: String
+    ): Int =
+        when (
+            timeframe
+        ) {
+
+            "M1" ->
+                1
+
+            "M5" ->
+                2
+
+            "M15" ->
+                3
+
+            "M30" ->
+                4
+
+            "H1" ->
+                5
+
+            "H4" ->
+                6
+
+            "D1" ->
+                7
+
+            else ->
+                0
+        }
+
+    private fun fibonacciEvidence(
+        candles:
+            List<MarketCandle>?,
+
+        bullish: Boolean
+    ): Double {
 
         if (
+            candles == null ||
             candles.size < 20
         ) {
-            return 50.0 to 50.0
+            return 50.0
         }
 
         val window =
@@ -1158,762 +1502,727 @@ class MainActivity : AppCompatActivity() {
             window.last().close
 
         val range =
-            high - low
+            high -
+                low
 
         if (
             range <= 0.0
         ) {
-            return 50.0 to 50.0
+            return 50.0
         }
 
         val level382 =
             high -
-                range * 0.382
+                range *
+                0.382
 
         val level500 =
             high -
-                range * 0.500
+                range *
+                0.500
 
         val level618 =
             high -
-                range * 0.618
+                range *
+                0.618
 
-        /*
-         * Perto de zonas de retração:
-         * o motor trata como região de decisão,
-         * não como certeza de reversão.
-         */
-
-        val distance382 =
-            abs(
-                last -
-                    level382
-            ) /
-                range
-
-        val distance500 =
-            abs(
-                last -
-                    level500
-            ) /
-                range
-
-        val distance618 =
-            abs(
-                last -
-                    level618
-            ) /
-                range
-
-        val proximity =
+        val distance =
             min(
-                distance382,
+                abs(
+                    last -
+                        level382
+                ),
                 min(
-                    distance500,
-                    distance618
+                    abs(
+                        last -
+                            level500
+                    ),
+                    abs(
+                        last -
+                            level618
+                    )
                 )
             )
 
+        val near =
+            distance /
+                range <
+                0.025
+
         if (
-            proximity < 0.025
+            near
         ) {
 
             return if (
-                last >
-                    level618
+                bullish
             ) {
-                65.0 to 45.0
+                65.0
             } else {
-                45.0 to 65.0
+                65.0
             }
         }
 
         return if (
-            last >
-                level500
+            bullish
         ) {
-            58.0 to 42.0
+
+            if (
+                last >
+                    level500
+            ) {
+                58.0
+            } else {
+                42.0
+            }
+
         } else {
-            42.0 to 58.0
+
+            if (
+                last <
+                    level500
+            ) {
+                58.0
+            } else {
+                42.0
+            }
         }
     }
 
-    /*
-     * ==================================================
-     * PRESSÃO DE FLUXO
-     * ==================================================
-     *
-     * IMPORTANTE:
-     * isto NÃO afirma que estamos vendo ordens de
-     * instituições ou "tubarões".
-     *
-     * É uma inferência quantitativa através de:
-     * volume + estrutura + candle.
-     *
-     * Para fluxo institucional real será necessário
-     * adicionar uma fonte específica de order flow.
-     */
-
-    private fun calculateFlowPressure(
-        metrics:
-            QuantMetrics
-    ): Pair<Double, Double> {
-
-        val bullish =
-            (
-                metrics.volume * 0.40 +
-                metrics.structure * 0.35 +
-                metrics.candlePattern * 0.25
-            )
-                .coerceIn(
-                    0.0,
-                    100.0
-                )
-
-        val bearish =
-            (
-                (100.0 -
-                    metrics.volume) * 0.40 +
-
-                (100.0 -
-                    metrics.structure) * 0.35 +
-
-                (100.0 -
-                    metrics.candlePattern) * 0.25
-            )
-                .coerceIn(
-                    0.0,
-                    100.0
-                )
-
-        return bullish to bearish
-    }
-
-    /*
-     * ==================================================
-     * TEXTO PRINCIPAL
-     * ==================================================
-     */
-
-    private fun buildAnalysisText(
+    private fun buildAnalysis(
         realtime:
             RealtimeAnalysis,
 
-        result:
-            FinalMotorResult,
+        deterministic:
+            DeterministicResult,
 
-        candles:
-            Map<String, List<MarketCandle>>,
-
-        selectedMetrics:
-            QuantMetrics,
-
-        selectedProbability:
+        probability:
             ProbabilityResult,
 
-        timeframeProbabilities:
-            Map<String, ProbabilityResult>
+        finalProbabilities:
+            Triple<Double, Double, Double>,
+
+        direction:
+            String,
+
+        bestTimeframe:
+            String,
+
+        metrics:
+            QuantMetrics,
+
+        entryPlan:
+            EntryPlanResult,
+
+        sequence:
+            SequenceResult,
+
+        candles:
+            Map<String, List<MarketCandle>>
     ): String {
 
-        val output =
-            StringBuilder()
+        val buy =
+            finalProbabilities.first
 
-        output.append(
-            "━━━━━━━━━━━━━━━━━━━━\n"
-        )
+        val sell =
+            finalProbabilities.second
 
-        output.append(
-            "MOTOR PROPRIETÁRIO\n"
-        )
+        val neutral =
+            finalProbabilities.third
 
-        output.append(
-            "ATIVO: $selectedAsset\n"
-        )
-
-        output.append(
-            "TIMEFRAME: $selectedTimeframe\n"
-        )
-
-        output.append(
-            "VISÃO: $selectedHorizon\n"
-        )
-
-        output.append(
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
-        )
-
-        /*
-         * ==================================
-         * RESULTADO FINAL
-         * ==================================
-         */
-
-        output.append(
-            "RESULTADO DO MOTOR\n\n"
-        )
-
-        output.append(
-            "MAIOR PRESSÃO: ${
-                selectedProbability.directionalBias
-            }\n"
-        )
-
-        output.append(
-            "DECISÃO FINAL: ${
-                result.decision.decision
-            }\n"
-        )
-
-        output.append(
-            "MOTIVO: ${
-                result.decision.reason
-            }\n\n"
-        )
-
-        /*
-         * ==================================
-         * PROBABILIDADE
-         * ==================================
-         */
-
-        output.append(
-            "PROBABILIDADE — $selectedTimeframe\n\n"
-        )
-
-        output.append(
-            "COMPRA: ${
-                "%.1f".format(
-                    selectedProbability.buyProbability
+        val confidence =
+            max(
+                buy,
+                sell
+            )
+                .minus(
+                    neutral
                 )
-            }%\n"
-        )
-
-        output.append(
-            "VENDA: ${
-                "%.1f".format(
-                    selectedProbability.sellProbability
+                .coerceIn(
+                    0.0,
+                    100.0
                 )
-            }%\n"
-        )
 
-        output.append(
-            "NEUTRO: ${
-                "%.1f".format(
-                    selectedProbability.neutralProbability
-                )
-            }%\n"
-        )
-
-        output.append(
-            "CONFIANÇA: ${
-                "%.1f".format(
-                    selectedProbability.confidence
-                )
-            }%\n\n"
-        )
-
-        /*
-         * ==================================
-         * PROVISIONAMENTO
-         * ==================================
-         */
-
-        val provisioning =
+        val deterministicLevel =
             when {
 
-                realtime.fsi >=
+                deterministic.confidence >=
                     80.0 ->
-                    "CRÍTICO — BLOQUEAR SINAL"
+                    "MUITO FORTE"
 
-                realtime.fsi >=
-                    60.0 ->
-                    "ALTO — EXIGIR CONFIRMAÇÃO"
+                deterministic.confidence >=
+                    65.0 ->
+                    "FORTE"
 
-                realtime.fsi >=
-                    40.0 ->
-                    "MODERADO — PROTEGER"
-
-                realtime.fsi >=
-                    20.0 ->
-                    "BAIXO"
+                deterministic.confidence >=
+                    50.0 ->
+                    "MODERADO"
 
                 else ->
-                    "MUITO BAIXO"
+                    "FRACO"
             }
 
-        output.append(
-            "PROVISIONAMENTO / RISCO\n\n"
-        )
+        val trapLevel =
+            when {
 
-        output.append(
-            "FSI: ${
-                "%.1f".format(
-                    realtime.fsi
-                )
-            }\n"
-        )
+                deterministic.trapRisk >=
+                    70.0 ->
+                    "ALTA"
 
-        output.append(
-            "FALSO SINAL: ${
-                "%.1f".format(
-                    realtime.falseSignal
-                )
-            }\n"
-        )
+                deterministic.trapRisk >=
+                    50.0 ->
+                    "MODERADA"
 
-        output.append(
-            "NÍVEL: ${
-                result.falseSignal.level
-            }\n"
-        )
-
-        output.append(
-            "PROVISIONAMENTO: $provisioning\n"
-        )
-
-        output.append(
-            "CONFLUÊNCIA MTF: ${
-                "%.1f".format(
-                    realtime.mtfConfluence
-                )
-            }%\n"
-        )
-
-        output.append(
-            "CONFIANÇA GERAL: ${
-                "%.1f".format(
-                    realtime.confidence
-                )
-            }%\n\n"
-        )
-
-        /*
-         * ==================================
-         * TIMEFRAME INDIVIDUAL
-         * ==================================
-         */
-
-        output.append(
-            "━━━━━━━━━━━━━━━━━━━━\n"
-        )
-
-        output.append(
-            "ANÁLISE INDIVIDUAL — $selectedTimeframe\n"
-        )
-
-        output.append(
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
-        )
-
-        output.append(
-            "DIREÇÃO: ${
-                metricDirection(
-                    selectedMetrics
-                )
-            }\n"
-        )
-
-        output.append(
-            "EMA 9: ${
-                "%.5f".format(
-                    selectedMetrics.ema9
-                )
-            }\n"
-        )
-
-        output.append(
-            "EMA 21: ${
-                "%.5f".format(
-                    selectedMetrics.ema21
-                )
-            }\n"
-        )
-
-        output.append(
-            "EMA 50: ${
-                "%.5f".format(
-                    selectedMetrics.ema50
-                )
-            }\n"
-        )
-
-        output.append(
-            "RSI: ${
-                "%.1f".format(
-                    selectedMetrics.rsi
-                )
-            }\n"
-        )
-
-        output.append(
-            "MACD: ${
-                "%.5f".format(
-                    selectedMetrics.macd
-                )
-            }\n"
-        )
-
-        output.append(
-            "MACD SIGNAL: ${
-                "%.5f".format(
-                    selectedMetrics.macdSignal
-                )
-            }\n"
-        )
-
-        output.append(
-            "ADX: ${
-                "%.1f".format(
-                    selectedMetrics.adx
-                )
-            }\n"
-        )
-
-        output.append(
-            "ATR: ${
-                "%.5f".format(
-                    selectedMetrics.atr
-                )
-            }\n"
-        )
-
-        output.append(
-            "ESTRUTURA: ${
-                "%.1f".format(
-                    selectedMetrics.structure
-                )
-            }\n"
-        )
-
-        output.append(
-            "MOMENTUM: ${
-                "%.1f".format(
-                    selectedMetrics.momentum
-                )
-            }\n"
-        )
-
-        output.append(
-            "VOLUME: ${
-                "%.1f".format(
-                    selectedMetrics.volume
-                )
-            }\n"
-        )
-
-        output.append(
-            "VOLATILIDADE: ${
-                "%.1f".format(
-                    selectedMetrics.volatility
-                )
-            }\n"
-        )
-
-        output.append(
-            "BREAKOUT: ${
-                "%.1f".format(
-                    selectedMetrics.breakout
-                )
-            }\n"
-        )
-
-        output.append(
-            "PADRÃO CANDLE: ${
-                "%.1f".format(
-                    selectedMetrics.candlePattern
-                )
-            }\n"
-        )
-
-        output.append(
-            "DIVERGÊNCIA: ${
-                "%.1f".format(
-                    selectedMetrics.divergence
-                )
-            }\n"
-        )
-
-        output.append(
-            "SUPORTE: ${
-                "%.5f".format(
-                    selectedMetrics.support
-                )
-            }\n"
-        )
-
-        output.append(
-            "RESISTÊNCIA: ${
-                "%.5f".format(
-                    selectedMetrics.resistance
-                )
-            }\n\n"
-        )
-
-        /*
-         * ==================================
-         * PROBABILIDADE GERAL
-         * ==================================
-         */
-
-        val generalProbability =
-            calculateGeneralProbability(
-                timeframeProbabilities
-            )
-
-        output.append(
-            "━━━━━━━━━━━━━━━━━━━━\n"
-        )
-
-        output.append(
-            "PROBABILIDADE GERAL\n"
-        )
-
-        output.append(
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
-        )
-
-        output.append(
-            "COMPRA: ${
-                "%.1f".format(
-                    generalProbability.first
-                )
-            }%\n"
-        )
-
-        output.append(
-            "VENDA: ${
-                "%.1f".format(
-                    generalProbability.second
-                )
-            }%\n"
-        )
-
-        output.append(
-            "NEUTRO: ${
-                "%.1f".format(
-                    generalProbability.third
-                )
-            }%\n\n"
-        )
-
-        /*
-         * ==================================
-         * TODOS OS TIMEFRAMES
-         * ==================================
-         */
-
-        output.append(
-            "LEITURA POR TIMEFRAME\n\n"
-        )
-
-        for (
-            timeframe in listOf(
-                "M1",
-                "M5",
-                "M15",
-                "M30",
-                "H1",
-                "H4",
-                "D1"
-            )
-        ) {
-
-            val probability =
-                timeframeProbabilities[
-                    timeframe
-                ]
-
-            if (
-                probability == null
-            ) {
-                output.append(
-                    "$timeframe: SEM DADOS\n"
-                )
-                continue
+                else ->
+                    "BAIXA"
             }
 
-            output.append(
-                "$timeframe → ${
-                    probability.directionalBias
-                } | C ${
+        val expansionLevel =
+            when {
+
+                deterministic.expansion >=
+                    70.0 ->
+                    "CONFIRMADA"
+
+                deterministic.expansion >=
+                    50.0 ->
+                    "EM FORMAÇÃO"
+
+                else ->
+                    "NÃO CONFIRMADA"
+            }
+
+        val accumulationLevel =
+            when {
+
+                deterministic.accumulation >=
+                    70.0 ->
+                    "DETECTADA"
+
+                deterministic.accumulation >=
+                    50.0 ->
+                    "POSSÍVEL"
+
+                else ->
+                    "NÃO DETECTADA"
+            }
+
+        val distributionLevel =
+            when {
+
+                deterministic.distribution >=
+                    70.0 ->
+                    "DETECTADA"
+
+                deterministic.distribution >=
+                    50.0 ->
+                    "POSSÍVEL"
+
+                else ->
+                    "NÃO DETECTADA"
+            }
+
+        val realizationLevel =
+            when {
+
+                deterministic.realizationRisk >=
+                    70.0 ->
+                    "ALTO"
+
+                deterministic.realizationRisk >=
+                    50.0 ->
+                    "MODERADO"
+
+                else ->
+                    "BAIXO"
+            }
+
+        return buildString {
+
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "MOTOR PROPRIETÁRIO\n"
+            )
+
+            append(
+                "$selectedAsset • $selectedTimeframe\n"
+            )
+
+            append(
+                "VISÃO: $selectedHorizon\n"
+            )
+
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n\n"
+            )
+
+            append(
+                "RESULTADO FINAL\n\n"
+            )
+
+            append(
+                when (
+                    direction
+                ) {
+
+                    "COMPRA" ->
+                        "🟢 COMPRA"
+
+                    "VENDA" ->
+                        "🔴 VENDA"
+
+                    else ->
+                        "⚪ NEUTRO"
+                }
+            )
+
+            append("\n\n")
+
+            append(
+                "COMPRA ........ ${
+                    "%.1f".format(
+                        buy
+                    )
+                }%\n"
+            )
+
+            append(
+                "VENDA ......... ${
+                    "%.1f".format(
+                        sell
+                    )
+                }%\n"
+            )
+
+            append(
+                "NEUTRO ........ ${
+                    "%.1f".format(
+                        neutral
+                    )
+                }%\n\n"
+            )
+
+            append(
+                "CONFIANÇA FINAL: ${
+                    "%.1f".format(
+                        confidence
+                    )
+                }%\n\n"
+            )
+
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "DETERMINISMO\n\n"
+            )
+
+            append(
+                "CONFIANÇA ..... ${
+                    "%.1f".format(
+                        deterministic.confidence
+                    )
+                }%\n"
+            )
+
+            append(
+                "NÍVEL ......... $deterministicLevel\n"
+            )
+
+            append(
+                "ARMADILHA ..... $trapLevel\n"
+            )
+
+            append(
+                "EXPANSÃO ...... $expansionLevel\n"
+            )
+
+            append(
+                "ACUMULAÇÃO .... $accumulationLevel\n"
+            )
+
+            append(
+                "DISTRIBUIÇÃO .. $distributionLevel\n"
+            )
+
+            append(
+                "EXAUSTÃO ...... ${
+                    "%.1f".format(
+                        deterministic.exhaustion
+                    )
+                }%\n"
+            )
+
+            append(
+                "LIQUIDEZ ...... ${
+                    "%.1f".format(
+                        deterministic.liquidityPressure
+                    )
+                }%\n"
+            )
+
+            append(
+                "REALIZAÇÃO .... $realizationLevel\n"
+            )
+
+            append(
+                "CONFLITO MTF .. ${
+                    "%.1f".format(
+                        deterministic.timeframeConflict
+                    )
+                }%\n"
+            )
+
+            append(
+                "CONFIRMAÇÃO ... ${
+                    "%.1f".format(
+                        deterministic.confirmation
+                    )
+                }%\n\n"
+            )
+
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "PROBABILIDADE\n\n"
+            )
+
+            append(
+                "COMPRA: ${
                     "%.1f".format(
                         probability.buyProbability
                     )
-                }% | V ${
+                }%\n"
+            )
+
+            append(
+                "VENDA: ${
                     "%.1f".format(
                         probability.sellProbability
                     )
-                }% | N ${
+                }%\n"
+            )
+
+            append(
+                "NEUTRO: ${
                     "%.1f".format(
                         probability.neutralProbability
                     )
                 }%\n"
             )
+
+            append(
+                "VIÉS: ${
+                    probability.directionalBias
+                }\n\n"
+            )
+
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "CONFLUÊNCIA MTF\n\n"
+            )
+
+            append(
+                "MTF: ${
+                    "%.1f".format(
+                        realtime.mtfConfluence
+                    )
+                }%\n"
+            )
+
+            append(
+                "REGIME: ${
+                    realtime.regime
+                }\n"
+            )
+
+            append(
+                "FSI: ${
+                    "%.1f".format(
+                        realtime.fsi
+                    )
+                }%\n"
+            )
+
+            append(
+                "FALSO SINAL: ${
+                    "%.1f".format(
+                        realtime.falseSignal
+                    )
+                }%\n\n"
+            )
+
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "MELHOR TIMEFRAME\n\n"
+            )
+
+            append(
+                "$bestTimeframe\n\n"
+            )
+
+            append(
+                "TENDÊNCIA: ${
+                    metricDirection(
+                        metrics
+                    )
+                }\n"
+            )
+
+            append(
+                "EMA 9: ${
+                    "%.5f".format(
+                        metrics.ema9
+                    )
+                }\n"
+            )
+
+            append(
+                "EMA 21: ${
+                    "%.5f".format(
+                        metrics.ema21
+                    )
+                }\n"
+            )
+
+            append(
+                "EMA 50: ${
+                    "%.5f".format(
+                        metrics.ema50
+                    )
+                }\n"
+            )
+
+            append(
+                "RSI: ${
+                    "%.1f".format(
+                        metrics.rsi
+                    )
+                }\n"
+            )
+
+            append(
+                "MACD: ${
+                    "%.5f".format(
+                        metrics.macd
+                    )
+                }\n"
+            )
+
+            append(
+                "ADX: ${
+                    "%.1f".format(
+                        metrics.adx
+                    )
+                }\n"
+            )
+
+            append(
+                "ATR: ${
+                    "%.5f".format(
+                        metrics.atr
+                    )
+                }\n"
+            )
+
+            append(
+                "SUPORTE: ${
+                    "%.5f".format(
+                        metrics.support
+                    )
+                }\n"
+            )
+
+            append(
+                "RESISTÊNCIA: ${
+                    "%.5f".format(
+                        metrics.resistance
+                    )
+                }\n\n"
+            )
+
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "ENTRADA\n\n"
+            )
+
+            append(
+                "STATUS: ${
+                    if (
+                        entryPlan.valid
+                    ) {
+                        "🟢 ENTRADA VÁLIDA"
+                    } else {
+                        "🟡 AGUARDAR"
+                    }
+                }\n"
+            )
+
+            append(
+                "TIMING: ${
+                    entryPlan.timing
+                }\n\n"
+            )
+
+            append(
+                "ENTRADA IDEAL: ${
+                    "%.5f".format(
+                        entryPlan.entry
+                    )
+                }\n"
+            )
+
+            append(
+                "ZONA: ${
+                    "%.5f".format(
+                        entryPlan.zoneLow
+                    )
+                } – ${
+                    "%.5f".format(
+                        entryPlan.zoneHigh
+                    )
+                }\n\n"
+            )
+
+            append(
+                "STOP: ${
+                    "%.5f".format(
+                        entryPlan.stop
+                    )
+                }\n\n"
+            )
+
+            append(
+                "TP1: ${
+                    "%.5f".format(
+                        entryPlan.tp1
+                    )
+                }  R:R 1:${entryPlan.rr1}\n"
+            )
+
+            append(
+                "TP2: ${
+                    "%.5f".format(
+                        entryPlan.tp2
+                    )
+                }  R:R 1:${entryPlan.rr2}\n"
+            )
+
+            append(
+                "TP3: ${
+                    "%.5f".format(
+                        entryPlan.tp3
+                    )
+                }  R:R 1:${entryPlan.rr3}\n\n"
+            )
+
+            append(
+                "VALIDADE: ${
+                    entryPlan.validityMinutes
+                } minutos\n"
+            )
+
+            append(
+                "EXPIRA EM: ${
+                    formatExpiry(
+                        entryPlan.expiresAt
+                    )
+                }\n\n"
+            )
+
+            append(
+                "MOTIVO: ${
+                    entryPlan.reason
+                }\n\n"
+            )
+
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "SEQUÊNCIA\n\n"
+            )
+
+            append(
+                "ESTÁGIO: ${
+                    sequence.stage
+                }\n"
+            )
+
+            append(
+                "CONFIRMADA: ${
+                    if (
+                        sequence.confirmed
+                    ) {
+                        "SIM"
+                    } else {
+                        "NÃO"
+                    }
+                }\n\n"
+            )
+
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "DADOS\n\n"
+            )
+
+            append(
+                "FONTE: TWELVE DATA\n"
+            )
+
+            append(
+                "QUALIDADE: ${
+                    realtime.market.dataQuality
+                }\n"
+            )
+
+            append(
+                "PREÇO: ${
+                    "%.5f".format(
+                        realtime.market.price
+                    )
+                }\n"
+            )
+
+            append(
+                "CANDLES: ${
+                    candles.values.sumOf {
+                        it.size
+                    }
+                }\n"
+            )
+
+            append(
+                "WEBSOCKET: TEMPO REAL\n"
+            )
+
+            append(
+                "EXECUÇÃO DE ORDENS: DESATIVADA\n"
+            )
+
+            append(
+                "\nATUALIZAÇÃO: CONTÍNUA"
+            )
         }
-
-        /*
-         * ==================================
-         * VISÃO DO HORIZONTE
-         * ==================================
-         */
-
-        output.append(
-            "\n━━━━━━━━━━━━━━━━━━━━\n"
-        )
-
-        output.append(
-            "HORIZONTE: $selectedHorizon\n"
-        )
-
-        output.append(
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
-        )
-
-        when (
-            selectedHorizon
-        ) {
-
-            "DIA" -> {
-
-                output.append(
-                    buildHorizonSummary(
-                        candles,
-                        "DIA"
-                    )
-                )
-            }
-
-            "SEMANA" -> {
-
-                output.append(
-                    buildHorizonSummary(
-                        candles,
-                        "SEMANA"
-                    )
-                )
-            }
-
-            "MÊS" -> {
-
-                output.append(
-                    buildHorizonSummary(
-                        candles,
-                        "MÊS"
-                    )
-                )
-            }
-
-            else -> {
-
-                output.append(
-                    buildHorizonSummary(
-                        candles,
-                        "DIA"
-                    )
-                )
-
-                output.append("\n")
-
-                output.append(
-                    buildHorizonSummary(
-                        candles,
-                        "SEMANA"
-                    )
-                )
-
-                output.append("\n")
-
-                output.append(
-                    buildHorizonSummary(
-                        candles,
-                        "MÊS"
-                    )
-                )
-            }
-        }
-
-        /*
-         * ==================================
-         * REGIME / SEQUÊNCIA
-         * ==================================
-         */
-
-        output.append(
-            "\nREGIME: ${
-                realtime.regime
-            }\n"
-        )
-
-        output.append(
-            "SEQUÊNCIA: ${
-                result.sequence.stage
-            }\n"
-        )
-
-        output.append(
-            "SEQUÊNCIA CONFIRMADA: ${
-                if (
-                    result.sequence.confirmed
-                ) {
-                    "SIM"
-                } else {
-                    "NÃO"
-                }
-            }\n\n"
-        )
-
-        /*
-         * ==================================
-         * DADOS
-         * ==================================
-         */
-
-        output.append(
-            "DADOS UTILIZADOS\n\n"
-        )
-
-        output.append(
-            "FONTE: TWELVE DATA\n"
-        )
-
-        output.append(
-            "QUALIDADE: ${
-                realtime.market.dataQuality
-            }\n"
-        )
-
-        output.append(
-            "PREÇO: ${
-                "%.5f".format(
-                    realtime.market.price
-                )
-            }\n"
-        )
-
-        output.append(
-            "WEBSOCKET: TEMPO REAL\n"
-        )
-
-        output.append(
-            "CANDLES: CACHE + ATUALIZAÇÃO\n"
-        )
-
-        output.append(
-            "EXECUÇÃO DE ORDENS: DESATIVADA\n"
-        )
-
-        output.append(
-            "\nATUALIZAÇÃO: CONTÍNUA"
-        )
-
-        return output.toString()
     }
-
-    /*
-     * ==================================================
-     * DIREÇÃO DO TIMEFRAME
-     * ==================================================
-     */
 
     private fun metricDirection(
         metrics:
@@ -1922,30 +2231,56 @@ class MainActivity : AppCompatActivity() {
 
         val bullish =
             listOf(
-                metrics.trend >= 60.0,
-                metrics.momentum >= 55.0,
+
+                metrics.trend >=
+                    60.0,
+
+                metrics.momentum >=
+                    55.0,
+
                 metrics.ema9 >
                     metrics.ema21,
+
                 metrics.macd >
                     metrics.macdSignal,
-                metrics.structure >= 55.0,
-                metrics.candlePattern >= 55.0,
-                metrics.breakout >= 55.0
+
+                metrics.structure >=
+                    55.0,
+
+                metrics.candlePattern >=
+                    55.0,
+
+                metrics.breakout >=
+                    55.0
+
             ).count {
                 it
             }
 
         val bearish =
             listOf(
-                metrics.trend <= 40.0,
-                metrics.momentum <= 45.0,
+
+                metrics.trend <=
+                    40.0,
+
+                metrics.momentum <=
+                    45.0,
+
                 metrics.ema9 <
                     metrics.ema21,
+
                 metrics.macd <
                     metrics.macdSignal,
-                metrics.structure <= 45.0,
-                metrics.candlePattern <= 45.0,
-                metrics.breakout <= 45.0
+
+                metrics.structure <=
+                    45.0,
+
+                metrics.candlePattern <=
+                    45.0,
+
+                metrics.breakout <=
+                    45.0
+
             ).count {
                 it
             }
@@ -1954,258 +2289,35 @@ class MainActivity : AppCompatActivity() {
 
             bullish >=
                 bearish + 2 ->
+
                 "MAIOR COMPRA"
 
             bearish >=
                 bullish + 2 ->
+
                 "MAIOR VENDA"
 
             else ->
+
                 "NEUTRO / EQUILIBRADO"
         }
     }
 
-    /*
-     * ==================================================
-     * PROBABILIDADE GERAL
-     * ==================================================
-     */
-
-    private fun calculateGeneralProbability(
-        probabilities:
-            Map<String, ProbabilityResult>
-    ): Triple<Double, Double, Double> {
-
-        if (
-            probabilities.isEmpty()
-        ) {
-            return Triple(
-                33.33,
-                33.33,
-                33.34
-            )
-        }
-
-        val weights =
-            mapOf(
-                "M1" to 0.05,
-                "M5" to 0.10,
-                "M15" to 0.15,
-                "M30" to 0.15,
-                "H1" to 0.20,
-                "H4" to 0.20,
-                "D1" to 0.15
-            )
-
-        var buy =
-            0.0
-
-        var sell =
-            0.0
-
-        var neutral =
-            0.0
-
-        var total =
-            0.0
-
-        for (
-            (timeframe, probability)
-            in probabilities
-        ) {
-
-            val weight =
-                weights[
-                    timeframe
-                ]
-                    ?: 0.05
-
-            buy +=
-                probability.buyProbability *
-                    weight
-
-            sell +=
-                probability.sellProbability *
-                    weight
-
-            neutral +=
-                probability.neutralProbability *
-                    weight
-
-            total +=
-                weight
-        }
-
-        if (
-            total <= 0.0
-        ) {
-            return Triple(
-                33.33,
-                33.33,
-                33.34
-            )
-        }
-
-        return Triple(
-            buy / total,
-            sell / total,
-            neutral / total
-        )
-    }
-
-    /*
-     * ==================================================
-     * DIA / SEMANA / MÊS
-     * ==================================================
-     */
-
-    private fun buildHorizonSummary(
-        candles:
-            Map<String, List<MarketCandle>>,
-
-        horizon:
-            String
+    private fun formatExpiry(
+        timestamp: Long
     ): String {
 
-        val timeframe =
-            when (horizon) {
-
-                "DIA" ->
-                    "H1"
-
-                "SEMANA" ->
-                    "H4"
-
-                "MÊS" ->
-                    "D1"
-
-                else ->
-                    "D1"
-            }
-
-        val data =
-            candles[
-                timeframe
-            ]
-                ?: emptyList()
-
-        if (
-            data.isEmpty()
-        ) {
-
-            return "$horizon: SEM DADOS $timeframe\n"
-        }
-
-        val amount =
-            when (horizon) {
-
-                "DIA" ->
-                    24
-
-                "SEMANA" ->
-                    30
-
-                "MÊS" ->
-                    30
-
-                else ->
-                    30
-            }
-
-        val window =
-            data.takeLast(
-                min(
-                    amount,
-                    data.size
-                )
+        val formatter =
+            java.text.SimpleDateFormat(
+                "dd/MM/yyyy HH:mm:ss",
+                java.util.Locale.getDefault()
             )
 
-        if (
-            window.isEmpty()
-        ) {
-
-            return "$horizon: SEM DADOS\n"
-        }
-
-        val first =
-            window.first().open
-
-        val last =
-            window.last().close
-
-        val high =
-            window.maxOf {
-                it.high
-            }
-
-        val low =
-            window.minOf {
-                it.low
-            }
-
-        val change =
-            if (
-                first != 0.0
-            ) {
-
-                (
-                    last -
-                        first
-                ) /
-                    first *
-                    100.0
-
-            } else {
-                0.0
-            }
-
-        val direction =
-            when {
-
-                change > 0.20 ->
-                    "MAIOR COMPRA"
-
-                change < -0.20 ->
-                    "MAIOR VENDA"
-
-                else ->
-                    "NEUTRO"
-            }
-
-        return buildString {
-
-            append(
-                "$horizon → $direction\n"
+        return formatter.format(
+            java.util.Date(
+                timestamp
             )
-
-            append(
-                "Timeframe-base: $timeframe\n"
-            )
-
-            append(
-                "Variação: ${
-                    "%.2f".format(
-                        change
-                    )
-                }%\n"
-            )
-
-            append(
-                "Máxima: ${
-                    "%.5f".format(
-                        high
-                    )
-                }\n"
-            )
-
-            append(
-                "Mínima: ${
-                    "%.5f".format(
-                        low
-                    )
-                }\n"
-            )
-        }
+        )
     }
 
     override fun onDestroy() {
