@@ -5,7 +5,13 @@ data class FinalMotorInput(
     val now: Long,
     val sequence: SequenceInput,
     val sequenceStage: SequenceStage,
-    val falseSignal: FalseSignalInput
+    val falseSignal: FalseSignalInput,
+
+    /*
+     * Probabilidade calculada pelo motor.
+     * Opcional para preservar compatibilidade.
+     */
+    val probability: ProbabilityResult? = null
 )
 
 data class FinalMotorResult(
@@ -14,50 +20,78 @@ data class FinalMotorResult(
     val falseSignal: FalseSignalResult,
     val sequence: SequenceResult,
     val decision: DecisionResult,
-    val marketUsable: Boolean
+    val marketUsable: Boolean,
+    val probability: ProbabilityResult? = null
 )
 
 object FinalMotorEngine {
 
-    fun evaluate(input: FinalMotorInput): FinalMotorResult {
+    fun evaluate(
+        input: FinalMotorInput
+    ): FinalMotorResult {
 
         val marketUsable =
-            input.market.isUsable(input.now)
-
-        val score = ScoreEngine.calculate(
-            ScoreInput(
-                structure = input.market.structure,
-                trend = input.market.trend,
-                momentum = input.market.momentum,
-                volume = input.market.volume,
-                volatility = input.market.volatility,
-                fsi = input.market.fsi,
-                multiTimeframe = input.market.multiTimeframe
+            input.market.isUsable(
+                input.now
             )
-        )
 
-        val fsi = FsiEngine.calculate(
-            FsiInput(
-                structureContradiction =
-                    input.falseSignal.structureContradiction,
+        val fsi =
+            FsiEngine.calculate(
+                FsiInput(
+                    structureContradiction =
+                        input.falseSignal
+                            .structureContradiction,
 
-                momentumDivergence =
-                    input.falseSignal.momentumDivergence,
+                    momentumDivergence =
+                        input.falseSignal
+                            .momentumDivergence,
 
-                volumeMismatch =
-                    input.falseSignal.volumeMismatch,
+                    volumeMismatch =
+                        input.falseSignal
+                            .volumeMismatch,
 
-                confirmationFailure =
-                    input.falseSignal.confirmationFailure,
+                    confirmationFailure =
+                        input.falseSignal
+                            .confirmationFailure,
 
-                timeframeConflict =
-                    input.falseSignal.timeframeConflict
+                    timeframeConflict =
+                        input.falseSignal
+                            .timeframeConflict
+                )
             )
-        )
 
         val falseSignal =
             FalseSignalEngine.evaluate(
                 input.falseSignal
+            )
+
+        val score =
+            ScoreEngine.calculate(
+                ScoreInput(
+                    structure =
+                        input.market.structure,
+
+                    trend =
+                        input.market.trend,
+
+                    momentum =
+                        input.market.momentum,
+
+                    volume =
+                        input.market.volume,
+
+                    volatility =
+                        input.market.volatility,
+
+                    /*
+                     * Agora FSI é risco.
+                     */
+                    fsi =
+                        fsi.value,
+
+                    multiTimeframe =
+                        input.market.multiTimeframe
+                )
             )
 
         val sequence =
@@ -67,7 +101,9 @@ object FinalMotorEngine {
             )
 
         val decision =
-            if (!marketUsable) {
+            if (
+                !marketUsable
+            ) {
 
                 DecisionResult(
                     decision = "AGUARDAR",
@@ -75,7 +111,9 @@ object FinalMotorEngine {
                     executableInPaper = false
                 )
 
-            } else if (falseSignal.blocked) {
+            } else if (
+                falseSignal.blocked
+            ) {
 
                 DecisionResult(
                     decision = "AGUARDAR",
@@ -87,21 +125,42 @@ object FinalMotorEngine {
 
                 DecisionEngine.evaluate(
                     DecisionInput(
-                        score = score.score,
-                        fsi = fsi,
+                        score =
+                            score.score,
+
+                        fsi =
+                            fsi,
+
                         sequenceConfirmed =
-                            sequence.confirmed
+                            sequence.confirmed,
+
+                        probability =
+                            input.probability
                     )
                 )
             }
 
         return FinalMotorResult(
-            score = score,
-            fsi = fsi,
-            falseSignal = falseSignal,
-            sequence = sequence,
-            decision = decision,
-            marketUsable = marketUsable
+            score =
+                score,
+
+            fsi =
+                fsi,
+
+            falseSignal =
+                falseSignal,
+
+            sequence =
+                sequence,
+
+            decision =
+                decision,
+
+            marketUsable =
+                marketUsable,
+
+            probability =
+                input.probability
         )
     }
 }
