@@ -14,7 +14,22 @@ data class FinalMotorInput(
     val deterministicNeutral: Double = 50.0,
     val deterministicConfidence: Double = 50.0,
 
-    val deterministicRisk: DeterministicRiskResult? = null
+    val deterministicRisk: DeterministicRiskResult? = null,
+
+    /*
+     * Pesos finais da fusão.
+     *
+     * Padrão inicial:
+     *
+     * Probabilidade = 50%
+     * Determinismo = 50%
+     *
+     * Quando existir uma calibração aceita,
+     * esses valores poderão ser substituídos
+     * pelo resultado histórico.
+     */
+    val probabilityWeight: Double = 0.50,
+    val deterministicWeight: Double = 0.50
 )
 
 data class FinalMotorResult(
@@ -32,7 +47,13 @@ data class FinalMotorResult(
     val deterministicNeutral: Double = 50.0,
     val deterministicConfidence: Double = 50.0,
 
-    val deterministicRisk: DeterministicRiskResult? = null
+    val deterministicRisk: DeterministicRiskResult? = null,
+
+    /*
+     * Pesos efetivamente utilizados na decisão.
+     */
+    val probabilityWeight: Double = 0.50,
+    val deterministicWeight: Double = 0.50
 )
 
 object FinalMotorEngine {
@@ -144,13 +165,6 @@ object FinalMotorEngine {
          * ==================================
          * 6. RISCO DETERMINÍSTICO
          * ==================================
-         *
-         * Se já foi calculado pelo chamador,
-         * utilizamos diretamente.
-         *
-         * Isso evita recalcular a mesma camada
-         * e permite que a decisão final utilize
-         * o mesmo risco apresentado na interface.
          */
 
         val deterministicRisk =
@@ -166,8 +180,6 @@ object FinalMotorEngine {
          * FSI
          * Falso Sinal
          * Determinismo
-         *
-         * protege a decisão.
          */
 
         val finalFalseSignalRisk =
@@ -338,14 +350,9 @@ object FinalMotorEngine {
                 /*
                  * Caso normal.
                  *
-                 * A decisão recebe:
-                 *
-                 * Score
-                 * Probabilidade
-                 * Determinismo
-                 * FSI
-                 * MTF
-                 * Sequência
+                 * Aqui os pesos de calibração
+                 * são finalmente enviados ao
+                 * DecisionEngine.
                  */
 
                 else -> {
@@ -383,7 +390,13 @@ object FinalMotorEngine {
 
                             mtfConfluence =
                                 input.market
-                                    .multiTimeframe
+                                    .multiTimeframe,
+
+                            probabilityWeight =
+                                input.probabilityWeight,
+
+                            deterministicWeight =
+                                input.deterministicWeight
                         )
                     )
                 }
@@ -431,7 +444,13 @@ object FinalMotorEngine {
                 input.deterministicConfidence,
 
             deterministicRisk =
-                deterministicRisk
+                deterministicRisk,
+
+            probabilityWeight =
+                input.probabilityWeight,
+
+            deterministicWeight =
+                input.deterministicWeight
         )
     }
 }
