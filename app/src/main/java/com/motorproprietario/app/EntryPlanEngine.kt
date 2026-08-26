@@ -18,18 +18,24 @@ data class EntryPlanInput(
 data class EntryPlanResult(
     val valid: Boolean,
     val timing: String,
+
     val entry: Double,
     val zoneLow: Double,
     val zoneHigh: Double,
+
     val stop: Double,
+
     val tp1: Double,
     val tp2: Double,
     val tp3: Double,
+
     val rr1: Double,
     val rr2: Double,
     val rr3: Double,
+
     val validityMinutes: Int,
     val expiresAt: Long,
+
     val reason: String
 )
 
@@ -37,8 +43,9 @@ object EntryPlanEngine {
 
     private fun positive(
         value: Double
-    ): Double =
-        if (
+    ): Double {
+
+        return if (
             value.isFinite() &&
             value > 0.0
         ) {
@@ -46,19 +53,47 @@ object EntryPlanEngine {
         } else {
             0.0
         }
+    }
+
+    private fun clamp(
+        value: Double,
+        minimum: Double = 0.0,
+        maximum: Double = 100.0
+    ): Double {
+
+        return value.coerceIn(
+            minimum,
+            maximum
+        )
+    }
 
     private fun roundPrice(
         value: Double
-    ): Double =
-        String.format(
+    ): Double {
+
+        return String.format(
+            java.util.Locale.US,
             "%.5f",
             value
         ).toDouble()
+    }
 
+    /*
+     * Validade máxima do sinal.
+     *
+     * Não significa que a ordem deve permanecer
+     * ativa obrigatoriamente durante esse período.
+     *
+     * É o prazo máximo para o cenário continuar
+     * sendo considerado válido pelo Motor.
+     */
     private fun validityFor(
         timeframe: String
-    ): Int =
-        when (timeframe) {
+    ): Int {
+
+        return when (
+            timeframe
+        ) {
 
             "M1" ->
                 5
@@ -84,6 +119,7 @@ object EntryPlanEngine {
             else ->
                 30
         }
+    }
 
     fun calculate(
         input: EntryPlanInput
@@ -99,49 +135,132 @@ object EntryPlanEngine {
                 input.metrics.atr
             )
 
-        val minutes =
+        val probability =
+            clamp(
+                input.probability
+            )
+
+        val deterministic =
+            clamp(
+                input.deterministicConfidence
+            )
+
+        val falseRisk =
+            clamp(
+                input.falseSignalRisk
+            )
+
+        val validityMinutes =
             validityFor(
                 input.timeframe
             )
 
-        val expiry =
+        val expiresAt =
             input.now +
-                minutes *
+                validityMinutes *
                 60_000L
 
         /*
-         * O plano só é criado quando existe
-         * evidência mínima nas duas lógicas.
+         * ==================================
+         * VALIDAÇÃO BÁSICA
+         * ==================================
          */
+
         if (
-            price <= 0.0 ||
-            atr <= 0.0 ||
-            input.probability < 60.0 ||
-            input.deterministicConfidence < 45.0 ||
-            input.falseSignalRisk >= 65.0 ||
-            input.direction !in
-                setOf(
-                    "COMPRA",
-                    "VENDA"
-                )
+            price <= 0.0
         ) {
 
             return invalid(
                 price,
-                minutes,
-                expiry,
-                "CONDIÇÕES INSUFICIENTES PARA PLANO DE ENTRADA"
+                validityMinutes,
+                expiresAt,
+                "PREÇO_INVALIDO"
+            )
+        }
+
+        if (
+            atr <= 0.0
+        ) {
+
+            return invalid(
+                price,
+                validityMinutes,
+                expiresAt,
+                "ATR_INVALIDO"
+            )
+        }
+
+        if (
+            input.direction !=
+                "COMPRA" &&
+            input.direction !=
+                "VENDA"
+        ) {
+
+            return invalid(
+                price,
+                validityMinutes,
+                expiresAt,
+                "SEM_DIREÇÃO_OPERACIONAL"
             )
         }
 
         /*
-         * Zona de entrada.
+         * ==================================
+         * PROTEÇÃO CONTRA FALSO SINAL
+         * ==================================
          */
-        val buffer =
-            max(
-                atr * 0.15,
-                price * 0.00005
+
+        if (
+            falseRisk >= 65.0
+        ) {
+
+            return invalid(
+                price,
+                validityMinutes,
+                expiresAt,
+                "RISCO_DE_FALSO_SINAL_ELEVADO"
             )
+        }
+
+        /*
+         * ==================================
+         * DOMINÂNCIA MÍNIMA
+         * ==================================
+         */
+
+        if (
+            probability < 60.0
+        ) {
+
+            return invalid(
+                price,
+                validityMinutes,
+                expiresAt,
+                "PROBABILIDADE_INSUFICIENTE"
+            )
+        }
+
+        if (
+            deterministic < 45.0
+        ) {
+
+            return invalid(
+                price,
+                validityMinutes,
+                expiresAt,
+                "DETERMINISMO_INSUFICIENTE"
+            )
+        }
+
+        /*
+         * ==================================
+         * ZONA DE ENTRADA
+         * ==================================
+         *
+         * A zona utiliza o ATR para evitar
+         * uma entrada excessivamente rígida.
+         */
 
         val zoneHalf =
             max(
@@ -152,15 +271,32 @@ object EntryPlanEngine {
         val entry =
             price
 
+        val zoneLow =
+            entry -
+                zoneHalf
+
+        val zoneHigh =
+            entry +
+                zoneHalf
+
         /*
-         * STOP estrutural.
-         *
-         * COMPRA:
-         * procura suporte abaixo do preço.
-         *
-         * VENDA:
-         * procura resistência acima do preço.
+         * ==================================
+         * BUFFER ESTRUTURAL
+         * ==================================
          */
+
+        val buffer =
+            max(
+                atr * 0.15,
+                price * 0.00005
+            )
+
+        /*
+         * ==================================
+         * STOP
+         * ==================================
+         */
+
         val rawStop =
             if (
                 input.direction ==
@@ -187,9 +323,13 @@ object EntryPlanEngine {
                             atr * 1.20
                     }
 
+                /*
+                 * Evita stop excessivamente próximo.
+                 */
                 min(
                     price -
                         atr * 0.85,
+
                     structuralStop
                 )
 
@@ -217,6 +357,7 @@ object EntryPlanEngine {
                 max(
                     price +
                         atr * 0.85,
+
                     structuralStop
                 )
             }
@@ -226,6 +367,12 @@ object EntryPlanEngine {
                 rawStop
             )
 
+        /*
+         * ==================================
+         * RISCO
+         * ==================================
+         */
+
         val risk =
             abs(
                 entry -
@@ -234,24 +381,29 @@ object EntryPlanEngine {
 
         if (
             risk <= 0.0 ||
-            !stop.isFinite()
+            !risk.isFinite()
         ) {
 
             return invalid(
                 price,
-                minutes,
-                expiry,
-                "DISTÂNCIA DE STOP INVÁLIDA"
+                validityMinutes,
+                expiresAt,
+                "RISCO_INVALIDO"
             )
         }
 
         /*
-         * TAKE PROFITS.
+         * ==================================
+         * TP
+         * ==================================
+         *
+         * Relação:
          *
          * TP1 = 1.8R
          * TP2 = 3.0R
          * TP3 = 4.8R
          */
+
         val tp1 =
             if (
                 input.direction ==
@@ -298,40 +450,79 @@ object EntryPlanEngine {
             }
 
         /*
-         * TIMING.
-         *
-         * A probabilidade sozinha não libera
-         * entrada.
-         *
-         * O determinismo também precisa confirmar.
+         * ==================================
+         * TIMING
+         * ==================================
          */
+
         val timing =
             when {
 
-                input.probability >=
+                probability >=
                     80.0 &&
-                input.deterministicConfidence >=
-                    75.0 ->
+                deterministic >=
+                    75.0 &&
+                falseRisk < 35.0 ->
 
                     "ENTRADA FAVORÁVEL"
 
-                input.probability >=
+                probability >=
                     70.0 &&
-                input.deterministicConfidence >=
-                    60.0 ->
+                deterministic >=
+                    60.0 &&
+                falseRisk < 50.0 ->
 
                     "ENTRADA CONDICIONAL"
 
-                else ->
+                probability >=
+                    60.0 &&
+                deterministic >=
+                    45.0 ->
 
                     "AGUARDAR RETESTE"
+
+                else ->
+
+                    "AGUARDAR"
+            }
+
+        /*
+         * ==================================
+         * VALIDADE
+         * ==================================
+         *
+         * Para evitar considerar qualquer plano
+         * como executável indefinidamente.
+         */
+
+        val valid =
+            timing ==
+                "ENTRADA FAVORÁVEL" ||
+            timing ==
+                "ENTRADA CONDICIONAL"
+
+        val reason =
+            when (
+                timing
+            ) {
+
+                "ENTRADA FAVORÁVEL" ->
+                    "PROBABILIDADE + DETERMINISMO + FSI CONFIRMADOS"
+
+                "ENTRADA CONDICIONAL" ->
+                    "SINAL CONFIRMADO, AGUARDAR MELHOR TIMING"
+
+                "AGUARDAR RETESTE" ->
+                    "DOMINÂNCIA EXISTE, MAS TIMING AINDA NÃO É IDEAL"
+
+                else ->
+                    "CONDIÇÕES INSUFICIENTES"
             }
 
         return EntryPlanResult(
 
             valid =
-                timing !=
-                    "AGUARDAR RETESTE",
+                valid,
 
             timing =
                 timing,
@@ -343,14 +534,12 @@ object EntryPlanEngine {
 
             zoneLow =
                 roundPrice(
-                    entry -
-                        zoneHalf
+                    zoneLow
                 ),
 
             zoneHigh =
                 roundPrice(
-                    entry +
-                        zoneHalf
+                    zoneHigh
                 ),
 
             stop =
@@ -381,13 +570,13 @@ object EntryPlanEngine {
                 4.8,
 
             validityMinutes =
-                minutes,
+                validityMinutes,
 
             expiresAt =
-                expiry,
+                expiresAt,
 
             reason =
-                "PLANO BASEADO EM ATR + ESTRUTURA + DOMINÂNCIA"
+                reason
         )
     }
 
@@ -396,9 +585,9 @@ object EntryPlanEngine {
         minutes: Int,
         expiry: Long,
         reason: String
-    ): EntryPlanResult =
+    ): EntryPlanResult {
 
-        EntryPlanResult(
+        return EntryPlanResult(
 
             valid =
                 false,
@@ -445,4 +634,5 @@ object EntryPlanEngine {
             reason =
                 reason
         )
+    }
 }
