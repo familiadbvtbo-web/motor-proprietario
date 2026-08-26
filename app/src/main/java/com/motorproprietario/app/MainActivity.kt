@@ -33,6 +33,12 @@ class MainActivity : AppCompatActivity() {
     private val candleClient =
         TwelveDataCandleClient()
 
+    private val calibrationRuntime by lazy {
+        CalibrationRuntime(
+            applicationContext
+        )
+    }
+
     private var selectedAsset =
         "EUR/USD"
 
@@ -81,6 +87,7 @@ class MainActivity : AppCompatActivity() {
         object : Runnable {
 
             override fun run() {
+
                 analyzeMarket()
 
                 handler.postDelayed(
@@ -135,6 +142,7 @@ class MainActivity : AppCompatActivity() {
         )
 
         buildInterface()
+
         connectRealtime()
 
         handler.post(
@@ -252,6 +260,7 @@ class MainActivity : AppCompatActivity() {
                         newAsset
 
                     resetForNewAsset()
+
                     connectRealtime()
                 }
 
@@ -571,7 +580,9 @@ class MainActivity : AppCompatActivity() {
                 val now =
                     System.currentTimeMillis()
 
-                updateCandles(now)
+                updateCandles(
+                    now
+                )
 
                 val candles =
                     LinkedHashMap<
@@ -582,6 +593,7 @@ class MainActivity : AppCompatActivity() {
                 synchronized(
                     candleCache
                 ) {
+
                     candles.putAll(
                         candleCache
                     )
@@ -592,6 +604,7 @@ class MainActivity : AppCompatActivity() {
                 ) {
 
                     runOnUiThread {
+
                         analysisView.text =
                             "AGUARDANDO CANDLES REAIS..."
                     }
@@ -706,9 +719,13 @@ class MainActivity : AppCompatActivity() {
 
                 val finalProbabilities =
                     combineFinalProbabilities(
+
                         probability,
+
                         deterministic,
+
                         realtime.fsi,
+
                         realtime.mtfConfluence
                     )
 
@@ -794,9 +811,13 @@ class MainActivity : AppCompatActivity() {
 
                 val bestFinal =
                     combineFinalProbabilities(
+
                         bestProbability,
+
                         bestDeterministic,
+
                         realtime.fsi,
+
                         realtime.mtfConfluence
                     )
 
@@ -847,7 +868,8 @@ class MainActivity : AppCompatActivity() {
                         SequenceInput(
 
                             signalDetected =
-                                bestDirection != "NEUTRO",
+                                bestDirection !=
+                                    "NEUTRO",
 
                             confirmation =
                                 realtime.mtfConfluence >=
@@ -859,12 +881,14 @@ class MainActivity : AppCompatActivity() {
                                 ) {
 
                                     "COMPRA" ->
+
                                         bestMetrics.ema9 >
                                             bestMetrics.ema21 &&
                                         bestMetrics.macd >
                                             bestMetrics.macdSignal
 
                                     "VENDA" ->
+
                                         bestMetrics.ema9 <
                                             bestMetrics.ema21 &&
                                         bestMetrics.macd <
@@ -1070,30 +1094,68 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun combineFinalProbabilities(
-        probability: ProbabilityResult,
-        deterministic: DeterministicResult,
-        fsi: Double,
-        mtf: Double
+        probability:
+            ProbabilityResult,
+
+        deterministic:
+            DeterministicResult,
+
+        fsi:
+            Double,
+
+        mtf:
+            Double
     ): Triple<Double, Double, Double> {
 
+        /*
+         * Os pesos agora vêm do histórico de calibração.
+         *
+         * Sem calibração aceita:
+         * 50% probabilidade
+         * 50% determinismo
+         *
+         * Com calibração aceita:
+         * utiliza os pesos selecionados pelo
+         * CalibrationEngine e persistidos localmente.
+         */
+        val weights =
+            calibrationRuntime.weights()
+
+        val probabilityWeight =
+            weights.first
+
+        val deterministicWeight =
+            weights.second
+
         var buy =
-            probability.buyProbability * 0.55 +
-            deterministic.buyScore * 0.45
+            probability.buyProbability *
+                probabilityWeight +
+            deterministic.buyScore *
+                deterministicWeight
 
         var sell =
-            probability.sellProbability * 0.55 +
-            deterministic.sellScore * 0.45
+            probability.sellProbability *
+                probabilityWeight +
+            deterministic.sellScore *
+                deterministicWeight
 
         var neutral =
-            probability.neutralProbability * 0.55 +
-            deterministic.neutralScore * 0.45
+            probability.neutralProbability *
+                probabilityWeight +
+            deterministic.neutralScore *
+                deterministicWeight
 
+        /*
+         * FSI continua funcionando como
+         * penalização de risco de falso sinal.
+         */
         val riskFactor =
             1.0 -
                 fsi.coerceIn(
                     0.0,
                     100.0
-                ) / 100.0
+                ) /
+                100.0
 
         buy *=
             0.65 +
@@ -1106,18 +1168,30 @@ class MainActivity : AppCompatActivity() {
         neutral +=
             fsi * 0.30
 
+        /*
+         * Confluência MTF.
+         */
         val mtfFactor =
             0.85 +
                 mtf.coerceIn(
                     0.0,
                     100.0
-                ) / 100.0 * 0.15
+                ) /
+                100.0 *
+                0.15
 
-        buy *= mtfFactor
-        sell *= mtfFactor
+        buy *=
+            mtfFactor
+
+        sell *=
+            mtfFactor
 
         neutral +=
-            (100.0 - mtf) * 0.20
+            (
+                100.0 -
+                    mtf
+            ) *
+                0.20
 
         val total =
             buy.coerceAtLeast(0.0) +
@@ -1127,6 +1201,7 @@ class MainActivity : AppCompatActivity() {
         if (
             total <= 0.0
         ) {
+
             return Triple(
                 33.33,
                 33.33,
@@ -1135,14 +1210,24 @@ class MainActivity : AppCompatActivity() {
         }
 
         return Triple(
-            buy.coerceAtLeast(0.0) /
-                total * 100.0,
 
-            sell.coerceAtLeast(0.0) /
-                total * 100.0,
+            buy.coerceAtLeast(
+                0.0
+            ) /
+                total *
+                100.0,
 
-            neutral.coerceAtLeast(0.0) /
-                total * 100.0
+            sell.coerceAtLeast(
+                0.0
+            ) /
+                total *
+                100.0,
+
+            neutral.coerceAtLeast(
+                0.0
+            ) /
+                total *
+                100.0
         )
     }
 
@@ -1163,13 +1248,19 @@ class MainActivity : AppCompatActivity() {
         return when {
 
             buy >= 60.0 &&
-            buy > sell + 5.0 &&
-            buy > neutral ->
+            buy >
+                sell + 5.0 &&
+            buy >
+                neutral ->
+
                 "COMPRA"
 
             sell >= 60.0 &&
-            sell > buy + 5.0 &&
-            sell > neutral ->
+            sell >
+                buy + 5.0 &&
+            sell >
+                neutral ->
+
                 "VENDA"
 
             else ->
@@ -1178,8 +1269,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun findBestTimeframe(
-        realtime: RealtimeAnalysis,
-        candles: Map<String, List<MarketCandle>>
+        realtime:
+            RealtimeAnalysis,
+
+        candles:
+            Map<String, List<MarketCandle>>
     ): String {
 
         val candidates =
@@ -1280,9 +1374,13 @@ class MainActivity : AppCompatActivity() {
 
             val final =
                 combineFinalProbabilities(
+
                     probability,
+
                     deterministic,
+
                     realtime.fsi,
+
                     realtime.mtfConfluence
                 )
 
@@ -1294,26 +1392,38 @@ class MainActivity : AppCompatActivity() {
 
             val score =
                 directional +
-                    deterministic.confidence * 0.20 +
-                    deterministic.confirmation * 0.15 -
-                    final.third * 0.35
+                    deterministic.confidence *
+                    0.20 +
+                    deterministic.confirmation *
+                    0.15 -
+                    final.third *
+                    0.35
 
             val timeframeBonus =
                 when (
                     timeframe
                 ) {
 
-                    "M15" -> 5.0
-                    "M30" -> 4.0
-                    "H1" -> 2.0
-                    else -> 0.0
+                    "M15" ->
+                        5.0
+
+                    "M30" ->
+                        4.0
+
+                    "H1" ->
+                        2.0
+
+                    else ->
+                        0.0
                 }
 
             val value =
-                score + timeframeBonus
+                score +
+                    timeframeBonus
 
             if (
-                value > bestValue
+                value >
+                    bestValue
             ) {
 
                 bestValue =
@@ -1330,26 +1440,48 @@ class MainActivity : AppCompatActivity() {
     private fun timeframeRank(
         timeframe: String
     ): Int =
-        when (timeframe) {
-            "M1" -> 1
-            "M5" -> 2
-            "M15" -> 3
-            "M30" -> 4
-            "H1" -> 5
-            "H4" -> 6
-            "D1" -> 7
-            else -> 0
+        when (
+            timeframe
+        ) {
+
+            "M1" ->
+                1
+
+            "M5" ->
+                2
+
+            "M15" ->
+                3
+
+            "M30" ->
+                4
+
+            "H1" ->
+                5
+
+            "H4" ->
+                6
+
+            "D1" ->
+                7
+
+            else ->
+                0
         }
 
     private fun fibonacciEvidence(
-        candles: List<MarketCandle>?,
-        bullish: Boolean
+        candles:
+            List<MarketCandle>?,
+
+        bullish:
+            Boolean
     ): Double {
 
         if (
             candles == null ||
             candles.size < 20
         ) {
+
             return 50.0
         }
 
@@ -1375,65 +1507,120 @@ class MainActivity : AppCompatActivity() {
             window.last().close
 
         val range =
-            high - low
+            high -
+                low
 
         if (
             range <= 0.0
         ) {
+
             return 50.0
         }
 
         val level382 =
-            high - range * 0.382
+            high -
+                range *
+                0.382
 
         val level500 =
-            high - range * 0.500
+            high -
+                range *
+                0.500
 
         val level618 =
-            high - range * 0.618
+            high -
+                range *
+                0.618
 
         val distance =
             min(
-                abs(last - level382),
+                abs(
+                    last -
+                        level382
+                ),
                 min(
-                    abs(last - level500),
-                    abs(last - level618)
+                    abs(
+                        last -
+                            level500
+                    ),
+                    abs(
+                        last -
+                            level618
+                    )
                 )
             )
 
         if (
-            distance / range < 0.025
+            distance /
+                range <
+                0.025
         ) {
+
             return 65.0
         }
 
-        return if (bullish) {
+        return if (
+            bullish
+        ) {
 
             if (
-                last > level500
-            ) 58.0
-            else 42.0
+                last >
+                    level500
+            ) {
+
+                58.0
+
+            } else {
+
+                42.0
+            }
 
         } else {
 
             if (
-                last < level500
-            ) 58.0
-            else 42.0
+                last <
+                    level500
+            ) {
+
+                58.0
+
+            } else {
+
+                42.0
+            }
         }
     }
 
     private fun buildAnalysis(
-        realtime: RealtimeAnalysis,
-        deterministic: DeterministicResult,
-        probability: ProbabilityResult,
-        finalProbabilities: Triple<Double, Double, Double>,
-        direction: String,
-        bestTimeframe: String,
-        metrics: QuantMetrics,
-        entryPlan: EntryPlanResult,
-        sequence: SequenceResult,
-        candles: Map<String, List<MarketCandle>>
+        realtime:
+            RealtimeAnalysis,
+
+        deterministic:
+            DeterministicResult,
+
+        probability:
+            ProbabilityResult,
+
+        finalProbabilities:
+            Triple<Double, Double, Double>,
+
+        direction:
+            String,
+
+        bestTimeframe:
+            String,
+
+        metrics:
+            QuantMetrics,
+
+        entryPlan:
+            EntryPlanResult,
+
+        sequence:
+            SequenceResult,
+
+        candles:
+            Map<String, List<MarketCandle>>
     ): String {
 
         val buy =
@@ -1446,25 +1633,55 @@ class MainActivity : AppCompatActivity() {
             finalProbabilities.third
 
         val confidence =
-            (
-                max(
-                    buy,
-                    sell
-                ) - neutral
-            ).coerceIn(
-                0.0,
-                100.0
+            max(
+                buy,
+                sell
             )
+                .minus(
+                    neutral
+                )
+                .coerceIn(
+                    0.0,
+                    100.0
+                )
+
+        val calibrationWeights =
+            calibrationRuntime.weights()
+
+        val probabilityWeight =
+            calibrationWeights.first *
+                100.0
+
+        val deterministicWeight =
+            calibrationWeights.second *
+                100.0
+
+        val calibrationStatus =
+            if (
+                calibrationRuntime
+                    .isCalibrated()
+            ) {
+
+                "HISTÓRICO ATIVO"
+
+            } else {
+
+                "PADRÃO 50/50"
+            }
 
         val deterministicLevel =
             when {
-                deterministic.confidence >= 80.0 ->
+
+                deterministic.confidence >=
+                    80.0 ->
                     "MUITO FORTE"
 
-                deterministic.confidence >= 65.0 ->
+                deterministic.confidence >=
+                    65.0 ->
                     "FORTE"
 
-                deterministic.confidence >= 50.0 ->
+                deterministic.confidence >=
+                    50.0 ->
                     "MODERADO"
 
                 else ->
@@ -1473,10 +1690,13 @@ class MainActivity : AppCompatActivity() {
 
         val trapLevel =
             when {
-                deterministic.trapRisk >= 70.0 ->
+
+                deterministic.trapRisk >=
+                    70.0 ->
                     "ALTA"
 
-                deterministic.trapRisk >= 50.0 ->
+                deterministic.trapRisk >=
+                    50.0 ->
                     "MODERADA"
 
                 else ->
@@ -1485,10 +1705,13 @@ class MainActivity : AppCompatActivity() {
 
         val expansionLevel =
             when {
-                deterministic.expansion >= 70.0 ->
+
+                deterministic.expansion >=
+                    70.0 ->
                     "CONFIRMADA"
 
-                deterministic.expansion >= 50.0 ->
+                deterministic.expansion >=
+                    50.0 ->
                     "EM FORMAÇÃO"
 
                 else ->
@@ -1497,10 +1720,13 @@ class MainActivity : AppCompatActivity() {
 
         val accumulationLevel =
             when {
-                deterministic.accumulation >= 70.0 ->
+
+                deterministic.accumulation >=
+                    70.0 ->
                     "DETECTADA"
 
-                deterministic.accumulation >= 50.0 ->
+                deterministic.accumulation >=
+                    50.0 ->
                     "POSSÍVEL"
 
                 else ->
@@ -1509,10 +1735,13 @@ class MainActivity : AppCompatActivity() {
 
         val distributionLevel =
             when {
-                deterministic.distribution >= 70.0 ->
+
+                deterministic.distribution >=
+                    70.0 ->
                     "DETECTADA"
 
-                deterministic.distribution >= 50.0 ->
+                deterministic.distribution >=
+                    50.0 ->
                     "POSSÍVEL"
 
                 else ->
@@ -1521,10 +1750,13 @@ class MainActivity : AppCompatActivity() {
 
         val realizationLevel =
             when {
-                deterministic.realizationRisk >= 70.0 ->
+
+                deterministic.realizationRisk >=
+                    70.0 ->
                     "ALTO"
 
-                deterministic.realizationRisk >= 50.0 ->
+                deterministic.realizationRisk >=
+                    50.0 ->
                     "MODERADO"
 
                 else ->
@@ -1533,19 +1765,43 @@ class MainActivity : AppCompatActivity() {
 
         return buildString {
 
-            append("━━━━━━━━━━━━━━━━━━━━\n")
-            append("MOTOR PROPRIETÁRIO\n")
-            append("$selectedAsset • $selectedTimeframe\n")
-            append("VISÃO: $selectedHorizon\n")
-            append("━━━━━━━━━━━━━━━━━━━━\n\n")
-
-            append("RESULTADO FINAL\n\n")
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
 
             append(
-                when (direction) {
-                    "COMPRA" -> "🟢 COMPRA"
-                    "VENDA" -> "🔴 VENDA"
-                    else -> "⚪ NEUTRO"
+                "MOTOR PROPRIETÁRIO\n"
+            )
+
+            append(
+                "$selectedAsset • $selectedTimeframe\n"
+            )
+
+            append(
+                "VISÃO: $selectedHorizon\n"
+            )
+
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n\n"
+            )
+
+            append(
+                "RESULTADO FINAL\n\n"
+            )
+
+            append(
+                when (
+                    direction
+                ) {
+
+                    "COMPRA" ->
+                        "🟢 COMPRA"
+
+                    "VENDA" ->
+                        "🔴 VENDA"
+
+                    else ->
+                        "⚪ NEUTRO"
                 }
             )
 
@@ -1553,30 +1809,71 @@ class MainActivity : AppCompatActivity() {
 
             append(
                 "COMPRA ........ ${
-                    "%.1f".format(buy)
+                    "%.1f".format(
+                        buy
+                    )
                 }%\n"
             )
 
             append(
                 "VENDA ......... ${
-                    "%.1f".format(sell)
+                    "%.1f".format(
+                        sell
+                    )
                 }%\n"
             )
 
             append(
                 "NEUTRO ........ ${
-                    "%.1f".format(neutral)
+                    "%.1f".format(
+                        neutral
+                    )
                 }%\n\n"
             )
 
             append(
                 "CONFIANÇA FINAL: ${
-                    "%.1f".format(confidence)
+                    "%.1f".format(
+                        confidence
+                    )
                 }%\n\n"
             )
 
-            append("━━━━━━━━━━━━━━━━━━━━\n")
-            append("DETERMINISMO\n\n")
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "CALIBRAÇÃO DO MOTOR\n\n"
+            )
+
+            append(
+                "STATUS: $calibrationStatus\n"
+            )
+
+            append(
+                "PROBABILIDADE: ${
+                    "%.1f".format(
+                        probabilityWeight
+                    )
+                }%\n"
+            )
+
+            append(
+                "DETERMINISMO: ${
+                    "%.1f".format(
+                        deterministicWeight
+                    )
+                }%\n\n"
+            )
+
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "DETERMINISMO\n\n"
+            )
 
             append(
                 "CONFIANÇA ..... ${
@@ -1642,8 +1939,13 @@ class MainActivity : AppCompatActivity() {
                 }%\n\n"
             )
 
-            append("━━━━━━━━━━━━━━━━━━━━\n")
-            append("PROBABILIDADE\n\n")
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "PROBABILIDADE\n\n"
+            )
 
             append(
                 "COMPRA: ${
@@ -1675,8 +1977,13 @@ class MainActivity : AppCompatActivity() {
                 }\n\n"
             )
 
-            append("━━━━━━━━━━━━━━━━━━━━\n")
-            append("CONFLUÊNCIA MTF\n\n")
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "CONFLUÊNCIA MTF\n\n"
+            )
 
             append(
                 "MTF: ${
@@ -1708,85 +2015,123 @@ class MainActivity : AppCompatActivity() {
                 }%\n\n"
             )
 
-            append("━━━━━━━━━━━━━━━━━━━━\n")
-            append("MELHOR TIMEFRAME\n\n")
-            append("$bestTimeframe\n\n")
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "MELHOR TIMEFRAME\n\n"
+            )
+
+            append(
+                "$bestTimeframe\n\n"
+            )
 
             append(
                 "TENDÊNCIA: ${
-                    metricDirection(metrics)
+                    metricDirection(
+                        metrics
+                    )
                 }\n"
             )
 
             append(
                 "EMA 9: ${
-                    "%.5f".format(metrics.ema9)
+                    "%.5f".format(
+                        metrics.ema9
+                    )
                 }\n"
             )
 
             append(
                 "EMA 21: ${
-                    "%.5f".format(metrics.ema21)
+                    "%.5f".format(
+                        metrics.ema21
+                    )
                 }\n"
             )
 
             append(
                 "EMA 50: ${
-                    "%.5f".format(metrics.ema50)
+                    "%.5f".format(
+                        metrics.ema50
+                    )
                 }\n"
             )
 
             append(
                 "RSI: ${
-                    "%.1f".format(metrics.rsi)
+                    "%.1f".format(
+                        metrics.rsi
+                    )
                 }\n"
             )
 
             append(
                 "MACD: ${
-                    "%.5f".format(metrics.macd)
+                    "%.5f".format(
+                        metrics.macd
+                    )
                 }\n"
             )
 
             append(
                 "MACD SIGNAL: ${
-                    "%.5f".format(metrics.macdSignal)
+                    "%.5f".format(
+                        metrics.macdSignal
+                    )
                 }\n"
             )
 
             append(
                 "ADX: ${
-                    "%.1f".format(metrics.adx)
+                    "%.1f".format(
+                        metrics.adx
+                    )
                 }\n"
             )
 
             append(
                 "ATR: ${
-                    "%.5f".format(metrics.atr)
+                    "%.5f".format(
+                        metrics.atr
+                    )
                 }\n"
             )
 
             append(
                 "SUPORTE: ${
-                    "%.5f".format(metrics.support)
+                    "%.5f".format(
+                        metrics.support
+                    )
                 }\n"
             )
 
             append(
                 "RESISTÊNCIA: ${
-                    "%.5f".format(metrics.resistance)
+                    "%.5f".format(
+                        metrics.resistance
+                    )
                 }\n\n"
             )
 
-            append("━━━━━━━━━━━━━━━━━━━━\n")
-            append("ENTRADA\n\n")
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "ENTRADA\n\n"
+            )
 
             append(
                 "STATUS: ${
-                    if (entryPlan.valid)
+                    if (
+                        entryPlan.valid
+                    ) {
                         "🟢 ENTRADA VÁLIDA"
-                    else
+                    } else {
                         "🟡 AGUARDAR"
+                    }
                 }\n"
             )
 
@@ -1798,39 +2143,53 @@ class MainActivity : AppCompatActivity() {
 
             append(
                 "ENTRADA IDEAL: ${
-                    "%.5f".format(entryPlan.entry)
+                    "%.5f".format(
+                        entryPlan.entry
+                    )
                 }\n"
             )
 
             append(
                 "ZONA: ${
-                    "%.5f".format(entryPlan.zoneLow)
+                    "%.5f".format(
+                        entryPlan.zoneLow
+                    )
                 } – ${
-                    "%.5f".format(entryPlan.zoneHigh)
+                    "%.5f".format(
+                        entryPlan.zoneHigh
+                    )
                 }\n\n"
             )
 
             append(
                 "STOP: ${
-                    "%.5f".format(entryPlan.stop)
+                    "%.5f".format(
+                        entryPlan.stop
+                    )
                 }\n\n"
             )
 
             append(
                 "TP1: ${
-                    "%.5f".format(entryPlan.tp1)
+                    "%.5f".format(
+                        entryPlan.tp1
+                    )
                 }  R:R 1:${entryPlan.rr1}\n"
             )
 
             append(
                 "TP2: ${
-                    "%.5f".format(entryPlan.tp2)
+                    "%.5f".format(
+                        entryPlan.tp2
+                    )
                 }  R:R 1:${entryPlan.rr2}\n"
             )
 
             append(
                 "TP3: ${
-                    "%.5f".format(entryPlan.tp3)
+                    "%.5f".format(
+                        entryPlan.tp3
+                    )
                 }  R:R 1:${entryPlan.rr3}\n\n"
             )
 
@@ -1854,8 +2213,13 @@ class MainActivity : AppCompatActivity() {
                 }\n\n"
             )
 
-            append("━━━━━━━━━━━━━━━━━━━━\n")
-            append("SEQUÊNCIA\n\n")
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
+
+            append(
+                "SEQUÊNCIA\n\n"
+            )
 
             append(
                 "ESTÁGIO: ${
@@ -1865,17 +2229,27 @@ class MainActivity : AppCompatActivity() {
 
             append(
                 "CONFIRMADA: ${
-                    if (sequence.confirmed)
+                    if (
+                        sequence.confirmed
+                    ) {
                         "SIM"
-                    else
+                    } else {
                         "NÃO"
+                    }
                 }\n\n"
             )
 
-            append("━━━━━━━━━━━━━━━━━━━━\n")
-            append("DADOS\n\n")
+            append(
+                "━━━━━━━━━━━━━━━━━━━━\n"
+            )
 
-            append("FONTE: TWELVE DATA\n")
+            append(
+                "DADOS\n\n"
+            )
+
+            append(
+                "FONTE: TWELVE DATA\n"
+            )
 
             append(
                 "QUALIDADE: ${
@@ -1899,47 +2273,95 @@ class MainActivity : AppCompatActivity() {
                 }\n"
             )
 
-            append("WEBSOCKET: TEMPO REAL\n")
-            append("EXECUÇÃO DE ORDENS: DESATIVADA\n")
-            append("\nATUALIZAÇÃO: CONTÍNUA")
+            append(
+                "WEBSOCKET: TEMPO REAL\n"
+            )
+
+            append(
+                "EXECUÇÃO DE ORDENS: DESATIVADA\n"
+            )
+
+            append(
+                "\nATUALIZAÇÃO: CONTÍNUA"
+            )
         }
     }
 
     private fun metricDirection(
-        metrics: QuantMetrics
+        metrics:
+            QuantMetrics
     ): String {
 
         val bullish =
             listOf(
-                metrics.trend >= 60.0,
-                metrics.momentum >= 55.0,
-                metrics.ema9 > metrics.ema21,
-                metrics.macd > metrics.macdSignal,
-                metrics.structure >= 55.0,
-                metrics.candlePattern >= 55.0,
-                metrics.breakout >= 55.0
-            ).count { it }
+
+                metrics.trend >=
+                    60.0,
+
+                metrics.momentum >=
+                    55.0,
+
+                metrics.ema9 >
+                    metrics.ema21,
+
+                metrics.macd >
+                    metrics.macdSignal,
+
+                metrics.structure >=
+                    55.0,
+
+                metrics.candlePattern >=
+                    55.0,
+
+                metrics.breakout >=
+                    55.0
+
+            ).count {
+                it
+            }
 
         val bearish =
             listOf(
-                metrics.trend <= 40.0,
-                metrics.momentum <= 45.0,
-                metrics.ema9 < metrics.ema21,
-                metrics.macd < metrics.macdSignal,
-                metrics.structure <= 45.0,
-                metrics.candlePattern <= 45.0,
-                metrics.breakout <= 45.0
-            ).count { it }
+
+                metrics.trend <=
+                    40.0,
+
+                metrics.momentum <=
+                    45.0,
+
+                metrics.ema9 <
+                    metrics.ema21,
+
+                metrics.macd <
+                    metrics.macdSignal,
+
+                metrics.structure <=
+                    45.0,
+
+                metrics.candlePattern <=
+                    45.0,
+
+                metrics.breakout <=
+                    45.0
+
+            ).count {
+                it
+            }
 
         return when {
 
-            bullish >= bearish + 2 ->
+            bullish >=
+                bearish + 2 ->
+
                 "MAIOR COMPRA"
 
-            bearish >= bullish + 2 ->
+            bearish >=
+                bullish + 2 ->
+
                 "MAIOR VENDA"
 
             else ->
+
                 "NEUTRO / EQUILIBRADO"
         }
     }
@@ -1955,7 +2377,9 @@ class MainActivity : AppCompatActivity() {
             )
 
         return formatter.format(
-            java.util.Date(timestamp)
+            java.util.Date(
+                timestamp
+            )
         )
     }
 
