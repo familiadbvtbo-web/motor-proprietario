@@ -5,31 +5,26 @@ data class DecisionInput(
     val fsi: FsiResult,
     val sequenceConfirmed: Boolean,
 
-    /*
-     * Motor probabilístico.
-     */
     val probability: ProbabilityResult? = null,
 
-    /*
-     * Motor determinístico.
-     *
-     * Mantido opcional nesta etapa para preservar
-     * compatibilidade com o restante do projeto.
-     */
     val deterministicBuy: Double = 50.0,
     val deterministicSell: Double = 50.0,
     val deterministicNeutral: Double = 50.0,
     val deterministicConfidence: Double = 50.0,
 
-    /*
-     * Melhor controle de falso sinal.
-     */
     val falseSignalRisk: Double = 0.0,
+    val mtfConfluence: Double = 50.0,
 
     /*
-     * Confluência dos timeframes.
+     * Parâmetros de calibração.
+     *
+     * Estes valores NÃO representam taxa de acerto.
+     * São apenas os pesos utilizados na fusão.
+     *
+     * O backtest poderá substituí-los posteriormente.
      */
-    val mtfConfluence: Double = 50.0
+    val probabilityWeight: Double = 0.50,
+    val deterministicWeight: Double = 0.50
 )
 
 data class DecisionResult(
@@ -37,73 +32,48 @@ data class DecisionResult(
     val reason: String,
     val executableInPaper: Boolean,
 
-    /*
-     * Percentuais finais.
-     *
-     * São o resultado da combinação da lógica
-     * probabilística com a lógica determinística.
-     */
     val buyProbability: Double = 0.0,
     val sellProbability: Double = 0.0,
     val neutralProbability: Double = 100.0,
 
-    /*
-     * Força da lógica determinística.
-     */
     val deterministicConfidence: Double = 50.0,
-
-    /*
-     * Risco de falso sinal utilizado
-     * na decisão.
-     */
     val falseSignalRisk: Double = 0.0,
-
-    /*
-     * Confluência MTF.
-     */
     val mtfConfluence: Double = 0.0
 )
 
 object DecisionEngine {
 
     private fun clamp(
-        value: Double,
-        min: Double = 0.0,
-        max: Double = 100.0
+        value: Double
     ): Double {
 
         return value.coerceIn(
-            min,
-            max
+            0.0,
+            100.0
         )
     }
 
-    /*
-     * Normaliza três probabilidades para que
-     * COMPRA + VENDA + NEUTRO = 100%.
-     */
-    private fun normalizeProbabilities(
+    private fun normalize(
         buy: Double,
         sell: Double,
         neutral: Double
     ): Triple<Double, Double, Double> {
 
-        val safeBuy =
+        val b =
             buy.coerceAtLeast(0.0)
 
-        val safeSell =
+        val s =
             sell.coerceAtLeast(0.0)
 
-        val safeNeutral =
+        val n =
             neutral.coerceAtLeast(0.0)
 
         val total =
-            safeBuy +
-                safeSell +
-                safeNeutral
+            b + s + n
 
         if (
-            total <= 0.0
+            total <= 0.0 ||
+            !total.isFinite()
         ) {
 
             return Triple(
@@ -114,47 +84,91 @@ object DecisionEngine {
         }
 
         return Triple(
-            safeBuy / total * 100.0,
-            safeSell / total * 100.0,
-            safeNeutral / total * 100.0
+            b / total * 100.0,
+            s / total * 100.0,
+            n / total * 100.0
         )
     }
 
     /*
-     * Combina:
+     * Garante que os pesos sejam válidos.
      *
-     * PROBABILIDADE
-     * +
-     * DETERMINISMO
-     *
-     * O determinismo funciona como uma segunda
-     * camada de validação do sinal.
+     * Se ambos forem zero ou inválidos,
+     * retorna 50/50.
      */
-    private fun combineProbabilityAndDeterminism(
+    private fun calibratedWeights(
+        probabilityWeight: Double,
+        deterministicWeight: Double
+    ): Pair<Double, Double> {
+
+        val p =
+            probabilityWeight
+                .takeIf {
+                    it.isFinite() &&
+                    it >= 0.0
+                }
+                ?: 0.50
+
+        val d =
+            deterministicWeight
+                .takeIf {
+                    it.isFinite() &&
+                    it >= 0.0
+                }
+                ?: 0.50
+
+        val total =
+            p + d
+
+        if (
+            total <= 0.0
+        ) {
+
+            return Pair(
+                0.50,
+                0.50
+            )
+        }
+
+        return Pair(
+            p / total,
+            d / total
+        )
+    }
+
+    /*
+     * ==================================
+     * FUSÃO CALIBRÁVEL
+     * ==================================
+     *
+     * Não existe mais um 60/40 fixo.
+     *
+     * O peso é fornecido pelo DecisionInput
+     * e poderá ser alterado pelo calibrador.
+     */
+    private fun combine(
         input: DecisionInput
     ): Triple<Double, Double, Double> {
 
         val probability =
             input.probability
 
-        /*
-         * Se o motor probabilístico ainda não
-         * estiver conectado, utilizamos o score
-         * como compatibilidade.
-         */
         val probabilityBuy =
-            probability?.buyProbability
+            probability
+                ?.buyProbability
                 ?: input.score
 
         val probabilitySell =
-            probability?.sellProbability
+            probability
+                ?.sellProbability
                 ?: (
                     100.0 -
                         input.score
                     )
 
         val probabilityNeutral =
-            probability?.neutralProbability
+            probability
+                ?.neutralProbability
                 ?: 0.0
 
         val pBuy =
@@ -187,62 +201,76 @@ object DecisionEngine {
                 input.deterministicNeutral
             )
 
+        val weights =
+            calibratedWeights(
+                input.probabilityWeight,
+                input.deterministicWeight
+            )
+
+        val probabilityWeight =
+            weights.first
+
+        val deterministicWeight =
+            weights.second
+
+        var buy =
+            pBuy *
+                probabilityWeight +
+            dBuy *
+                deterministicWeight
+
+        var sell =
+            pSell *
+                probabilityWeight +
+            dSell *
+                deterministicWeight
+
+        var neutral =
+            pNeutral *
+                probabilityWeight +
+            dNeutral *
+                deterministicWeight
+
         /*
-         * Peso inicial:
-         *
-         * 60% Probabilidade
-         * 40% Determinismo
-         *
-         * Essa proporção poderá ser calibrada
-         * posteriormente através de backtest.
+         * ==================================
+         * FSI
+         * ==================================
          */
-        val rawBuy =
-            pBuy * 0.60 +
-                dBuy * 0.40
 
-        val rawSell =
-            pSell * 0.60 +
-                dSell * 0.40
-
-        val rawNeutral =
-            pNeutral * 0.60 +
-                dNeutral * 0.40
-
-        /*
-         * Falso sinal reduz a confiança direcional
-         * e aumenta a neutralidade.
-         */
         val falseRisk =
             clamp(
                 input.falseSignalRisk
             )
 
         val riskFactor =
-            1.0 -
-                falseRisk / 100.0
-
-        val adjustedBuy =
-            rawBuy *
-                (
-                    0.65 +
-                        riskFactor * 0.35
+            (
+                1.0 -
+                    falseRisk / 100.0
+            )
+                .coerceIn(
+                    0.0,
+                    1.0
                 )
 
-        val adjustedSell =
-            rawSell *
-                (
-                    0.65 +
-                        riskFactor * 0.35
-                )
+        val directionalFactor =
+            0.60 +
+                riskFactor * 0.40
 
-        val adjustedNeutral =
-            rawNeutral +
-                falseRisk * 0.35
+        buy *=
+            directionalFactor
+
+        sell *=
+            directionalFactor
+
+        neutral +=
+            falseRisk * 0.35
 
         /*
-         * MTF aumenta a confiabilidade somente
-         * quando existe confluência.
+         * ==================================
+         * MTF
+         * ==================================
          */
+
         val mtf =
             clamp(
                 input.mtfConfluence
@@ -254,25 +282,55 @@ object DecisionEngine {
                     mtf / 100.0
                 ) * 0.15
 
-        val finalBuy =
-            adjustedBuy *
-                mtfFactor
+        buy *=
+            mtfFactor
 
-        val finalSell =
-            adjustedSell *
-                mtfFactor
+        sell *=
+            mtfFactor
 
-        val finalNeutral =
-            adjustedNeutral +
+        neutral +=
+            (
+                100.0 -
+                    mtf
+            ) * 0.20
+
+        /*
+         * ==================================
+         * DETERMINISMO FRACO
+         * ==================================
+         */
+
+        val deterministicConfidence =
+            clamp(
+                input.deterministicConfidence
+            )
+
+        if (
+            deterministicConfidence < 40.0
+        ) {
+
+            val penalty =
                 (
-                    100.0 -
-                        mtf
-                ) * 0.15
+                    40.0 -
+                        deterministicConfidence
+                ) * 0.50
 
-        return normalizeProbabilities(
-            finalBuy,
-            finalSell,
-            finalNeutral
+            buy *=
+                1.0 -
+                    penalty / 100.0
+
+            sell *=
+                1.0 -
+                    penalty / 100.0
+
+            neutral +=
+                penalty
+        }
+
+        return normalize(
+            buy,
+            sell,
+            neutral
         )
     }
 
@@ -302,7 +360,7 @@ object DecisionEngine {
 
         /*
          * ==================================
-         * 1. BLOQUEIO DE FSI CRÍTICO
+         * 1. FSI
          * ==================================
          */
 
@@ -320,20 +378,20 @@ object DecisionEngine {
                 executableInPaper =
                     false,
 
+                deterministicConfidence =
+                    deterministicConfidence,
+
                 falseSignalRisk =
                     falseRisk,
 
                 mtfConfluence =
-                    mtf,
-
-                deterministicConfidence =
-                    deterministicConfidence
+                    mtf
             )
         }
 
         /*
          * ==================================
-         * 2. SEQUÊNCIA
+         * 2. CONFIRMAÇÃO
          * ==================================
          */
 
@@ -352,14 +410,14 @@ object DecisionEngine {
                 executableInPaper =
                     false,
 
+                deterministicConfidence =
+                    deterministicConfidence,
+
                 falseSignalRisk =
                     falseRisk,
 
                 mtfConfluence =
-                    mtf,
-
-                deterministicConfidence =
-                    deterministicConfidence
+                    mtf
             )
         }
 
@@ -377,56 +435,55 @@ object DecisionEngine {
                 executableInPaper =
                     false,
 
+                deterministicConfidence =
+                    deterministicConfidence,
+
                 falseSignalRisk =
                     falseRisk,
 
                 mtfConfluence =
-                    mtf,
-
-                deterministicConfidence =
-                    deterministicConfidence
+                    mtf
             )
         }
 
         /*
          * ==================================
-         * 3. FUSÃO PROBABILIDADE +
-         *    DETERMINISMO
+         * 3. FUSÃO
          * ==================================
          */
 
-        val combined =
-            combineProbabilityAndDeterminism(
+        val final =
+            combine(
                 input
             )
 
-        val buyProbability =
-            combined.first
+        val buy =
+            final.first
 
-        val sellProbability =
-            combined.second
+        val sell =
+            final.second
 
-        val neutralProbability =
-            combined.third
+        val neutral =
+            final.third
 
         /*
          * ==================================
-         * 4. DOMINÂNCIA DIRECIONAL
+         * 4. DOMINÂNCIA
          * ==================================
          */
 
         val strongest =
             maxOf(
-                buyProbability,
-                sellProbability,
-                neutralProbability
+                buy,
+                sell,
+                neutral
             )
 
-        val secondStrongest =
+        val second =
             listOf(
-                buyProbability,
-                sellProbability,
-                neutralProbability
+                buy,
+                sell,
+                neutral
             )
                 .sortedDescending()
                 .getOrElse(1) {
@@ -435,43 +492,103 @@ object DecisionEngine {
 
         val dominance =
             strongest -
-                secondStrongest
+                second
 
         /*
          * ==================================
-         * 5. PROTEÇÃO DETERMINÍSTICA
+         * 5. CONFLITO DETERMINÍSTICO
          * ==================================
-         *
-         * Se a probabilidade aponta uma direção,
-         * mas o determinismo aponta fortemente
-         * contra ela, o Motor não entra.
          */
 
-        val deterministicConflictBuy =
+        val buyConflict =
             input.deterministicSell >
-                input.deterministicBuy + 20.0
+                input.deterministicBuy +
+                20.0
 
-        val deterministicConflictSell =
+        val sellConflict =
             input.deterministicBuy >
-                input.deterministicSell + 20.0
+                input.deterministicSell +
+                20.0
 
         /*
          * ==================================
-         * 6. COMPRA
+         * 6. FALSO SINAL
          * ==================================
          */
 
         if (
-            buyProbability >= 70.0 &&
-            buyProbability >
-                sellProbability + 8.0 &&
-            buyProbability >
-                neutralProbability &&
+            falseRisk >= 65.0
+        ) {
+
+            return result(
+                "RISCO_DE_FALSO_SINAL_ELEVADO",
+                buy,
+                sell,
+                neutral,
+                deterministicConfidence,
+                falseRisk,
+                mtf
+            )
+        }
+
+        /*
+         * ==================================
+         * 7. MTF
+         * ==================================
+         */
+
+        if (
+            mtf < 50.0
+        ) {
+
+            return result(
+                "CONFLUENCIA_MTF_INSUFICIENTE",
+                buy,
+                sell,
+                neutral,
+                deterministicConfidence,
+                falseRisk,
+                mtf
+            )
+        }
+
+        /*
+         * ==================================
+         * 8. DETERMINISMO
+         * ==================================
+         */
+
+        if (
+            deterministicConfidence < 40.0
+        ) {
+
+            return result(
+                "DETERMINISMO_INSUFICIENTE",
+                buy,
+                sell,
+                neutral,
+                deterministicConfidence,
+                falseRisk,
+                mtf
+            )
+        }
+
+        /*
+         * ==================================
+         * 9. COMPRA
+         * ==================================
+         */
+
+        if (
+            buy >= 70.0 &&
+            buy >
+                sell + 8.0 &&
+            buy >
+                neutral &&
             dominance >= 8.0 &&
             score >= 55.0 &&
-            !deterministicConflictBuy &&
-            deterministicConfidence >= 45.0 &&
-            falseRisk < 65.0
+            !buyConflict &&
+            deterministicConfidence >= 45.0
         ) {
 
             return DecisionResult(
@@ -485,13 +602,13 @@ object DecisionEngine {
                     true,
 
                 buyProbability =
-                    buyProbability,
+                    buy,
 
                 sellProbability =
-                    sellProbability,
+                    sell,
 
                 neutralProbability =
-                    neutralProbability,
+                    neutral,
 
                 deterministicConfidence =
                     deterministicConfidence,
@@ -506,21 +623,20 @@ object DecisionEngine {
 
         /*
          * ==================================
-         * 7. VENDA
+         * 10. VENDA
          * ==================================
          */
 
         if (
-            sellProbability >= 70.0 &&
-            sellProbability >
-                buyProbability + 8.0 &&
-            sellProbability >
-                neutralProbability &&
+            sell >= 70.0 &&
+            sell >
+                buy + 8.0 &&
+            sell >
+                neutral &&
             dominance >= 8.0 &&
             score <= 45.0 &&
-            !deterministicConflictSell &&
-            deterministicConfidence >= 45.0 &&
-            falseRisk < 65.0
+            !sellConflict &&
+            deterministicConfidence >= 45.0
         ) {
 
             return DecisionResult(
@@ -534,13 +650,13 @@ object DecisionEngine {
                     true,
 
                 buyProbability =
-                    buyProbability,
+                    buy,
 
                 sellProbability =
-                    sellProbability,
+                    sell,
 
                 neutralProbability =
-                    neutralProbability,
+                    neutral,
 
                 deterministicConfidence =
                     deterministicConfidence,
@@ -555,240 +671,63 @@ object DecisionEngine {
 
         /*
          * ==================================
-         * 8. CONFLITO
+         * 11. CONFLITO
          * ==================================
          */
 
         if (
-            buyProbability >= 60.0 &&
-            sellProbability >= 60.0
+            buy >= 60.0 &&
+            sell >= 60.0
         ) {
 
-            return DecisionResult(
-                decision =
-                    "AGUARDAR",
-
-                reason =
-                    "CONFLITO_ENTRE_DIRECOES",
-
-                executableInPaper =
-                    false,
-
-                buyProbability =
-                    buyProbability,
-
-                sellProbability =
-                    sellProbability,
-
-                neutralProbability =
-                    neutralProbability,
-
-                deterministicConfidence =
-                    deterministicConfidence,
-
-                falseSignalRisk =
-                    falseRisk,
-
-                mtfConfluence =
-                    mtf
+            return result(
+                "CONFLITO_ENTRE_DIRECOES",
+                buy,
+                sell,
+                neutral,
+                deterministicConfidence,
+                falseRisk,
+                mtf
             )
         }
 
         /*
          * ==================================
-         * 9. DETERMINISMO FRACO
+         * 12. DIREÇÃO MODERADA
          * ==================================
          */
 
         if (
-            deterministicConfidence < 40.0
+            buy >= 60.0 &&
+            buy >
+                sell + 5.0
         ) {
 
-            return DecisionResult(
-                decision =
-                    "AGUARDAR",
-
-                reason =
-                    "DETERMINISMO_INSUFICIENTE",
-
-                executableInPaper =
-                    false,
-
-                buyProbability =
-                    buyProbability,
-
-                sellProbability =
-                    sellProbability,
-
-                neutralProbability =
-                    neutralProbability,
-
-                deterministicConfidence =
-                    deterministicConfidence,
-
-                falseSignalRisk =
-                    falseRisk,
-
-                mtfConfluence =
-                    mtf
-            )
-        }
-
-        /*
-         * ==================================
-         * 10. FALSO SINAL ELEVADO
-         * ==================================
-         */
-
-        if (
-            falseRisk >= 60.0
-        ) {
-
-            return DecisionResult(
-                decision =
-                    "AGUARDAR",
-
-                reason =
-                    "RISCO_DE_FALSO_SINAL_ELEVADO",
-
-                executableInPaper =
-                    false,
-
-                buyProbability =
-                    buyProbability,
-
-                sellProbability =
-                    sellProbability,
-
-                neutralProbability =
-                    neutralProbability,
-
-                deterministicConfidence =
-                    deterministicConfidence,
-
-                falseSignalRisk =
-                    falseRisk,
-
-                mtfConfluence =
-                    mtf
-            )
-        }
-
-        /*
-         * ==================================
-         * 11. MTF FRACO
-         * ==================================
-         */
-
-        if (
-            mtf < 50.0
-        ) {
-
-            return DecisionResult(
-                decision =
-                    "AGUARDAR",
-
-                reason =
-                    "CONFLUENCIA_MTF_INSUFICIENTE",
-
-                executableInPaper =
-                    false,
-
-                buyProbability =
-                    buyProbability,
-
-                sellProbability =
-                    sellProbability,
-
-                neutralProbability =
-                    neutralProbability,
-
-                deterministicConfidence =
-                    deterministicConfidence,
-
-                falseSignalRisk =
-                    falseRisk,
-
-                mtfConfluence =
-                    mtf
-            )
-        }
-
-        /*
-         * ==================================
-         * 12. PROBABILIDADE MODERADA
-         * ==================================
-         */
-
-        if (
-            buyProbability >= 60.0 &&
-            buyProbability >
-                sellProbability + 5.0
-        ) {
-
-            return DecisionResult(
-                decision =
-                    "AGUARDAR",
-
-                reason =
-                    "COMPRA_MODERADA_AGUARDAR_TIMING",
-
-                executableInPaper =
-                    false,
-
-                buyProbability =
-                    buyProbability,
-
-                sellProbability =
-                    sellProbability,
-
-                neutralProbability =
-                    neutralProbability,
-
-                deterministicConfidence =
-                    deterministicConfidence,
-
-                falseSignalRisk =
-                    falseRisk,
-
-                mtfConfluence =
-                    mtf
+            return result(
+                "COMPRA_MODERADA_AGUARDAR_TIMING",
+                buy,
+                sell,
+                neutral,
+                deterministicConfidence,
+                falseRisk,
+                mtf
             )
         }
 
         if (
-            sellProbability >= 60.0 &&
-            sellProbability >
-                buyProbability + 5.0
+            sell >= 60.0 &&
+            sell >
+                buy + 5.0
         ) {
 
-            return DecisionResult(
-                decision =
-                    "AGUARDAR",
-
-                reason =
-                    "VENDA_MODERADA_AGUARDAR_TIMING",
-
-                executableInPaper =
-                    false,
-
-                buyProbability =
-                    buyProbability,
-
-                sellProbability =
-                    sellProbability,
-
-                neutralProbability =
-                    neutralProbability,
-
-                deterministicConfidence =
-                    deterministicConfidence,
-
-                falseSignalRisk =
-                    falseRisk,
-
-                mtfConfluence =
-                    mtf
+            return result(
+                "VENDA_MODERADA_AGUARDAR_TIMING",
+                buy,
+                sell,
+                neutral,
+                deterministicConfidence,
+                falseRisk,
+                mtf
             )
         }
 
@@ -798,24 +737,46 @@ object DecisionEngine {
          * ==================================
          */
 
+        return result(
+            "SEM_DOMINANCIA_SUFICIENTE",
+            buy,
+            sell,
+            neutral,
+            deterministicConfidence,
+            falseRisk,
+            mtf
+        )
+    }
+
+    private fun result(
+        reason: String,
+        buy: Double,
+        sell: Double,
+        neutral: Double,
+        deterministicConfidence: Double,
+        falseRisk: Double,
+        mtf: Double
+    ): DecisionResult {
+
         return DecisionResult(
+
             decision =
                 "AGUARDAR",
 
             reason =
-                "PROBABILIDADE_E_DETERMINISMO_SEM_DOMINANCIA",
+                reason,
 
             executableInPaper =
                 false,
 
             buyProbability =
-                buyProbability,
+                buy,
 
             sellProbability =
-                sellProbability,
+                sell,
 
             neutralProbability =
-                neutralProbability,
+                neutral,
 
             deterministicConfidence =
                 deterministicConfidence,
