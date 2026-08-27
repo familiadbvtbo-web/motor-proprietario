@@ -292,7 +292,7 @@ class DopmDashboardView(
 
         scroll.addView(
     content,
-    ScrollView.LayoutParams(
+    FrameLayout.LayoutParams(
         FrameLayout.LayoutParams.MATCH_PARENT,
         FrameLayout.LayoutParams.WRAP_CONTENT
     )
