@@ -2,18 +2,8 @@ package com.motorproprietario.app
 
 import android.app.Activity
 import android.widget.Toast
+import java.util.Locale
 
-/**
- * Controlador da interface principal DOPM.
- *
- * Responsabilidades:
- * - instalar o Dashboard;
- * - receber eventos dos seletores;
- * - encaminhar resultados dos motores para a interface;
- * - não realizar cálculos matemáticos.
- *
- * Os cálculos permanecem nos Engines existentes.
- */
 class DopmDashboardController(
     private val activity: Activity
 ) {
@@ -29,20 +19,16 @@ class DopmDashboardController(
             return
         }
 
-        val view =
+        dashboard =
             DopmDashboardView(activity)
 
-        dashboard =
-            view
-
-        activity.setContentView(view)
+        activity.setContentView(
+            dashboard
+        )
     }
 
-    fun view():
-        DopmDashboardView? {
-
-        return dashboard
-    }
+    fun view(): DopmDashboardView? =
+        dashboard
 
     fun setSelectionListeners(
         marketChanged: (String) -> Unit,
@@ -51,7 +37,6 @@ class DopmDashboardController(
     ) {
 
         dashboard?.setSelectionListeners(
-
             marketChanged,
             assetChanged,
             timeframeChanged
@@ -67,13 +52,9 @@ class DopmDashboardController(
 
             dashboard?.apply {
 
-                setOnline(
-                    online
-                )
+                setOnline(online)
 
-                setApi(
-                    api
-                )
+                setApi(api)
             }
         }
     }
@@ -88,6 +69,7 @@ class DopmDashboardController(
             dashboard?.setPrice(
 
                 String.format(
+                    Locale.US,
                     "%.5f",
                     price
                 )
@@ -176,26 +158,31 @@ class DopmDashboardController(
             dashboard?.setTradePlan(
 
                 String.format(
+                    Locale.US,
                     "%.5f",
                     entry
                 ),
 
                 String.format(
+                    Locale.US,
                     "%.5f",
                     stop
                 ),
 
                 String.format(
+                    Locale.US,
                     "%.5f",
                     tp1
                 ),
 
                 String.format(
+                    Locale.US,
                     "%.5f",
                     tp2
                 ),
 
                 String.format(
+                    Locale.US,
                     "%.5f",
                     tp3
                 )
@@ -224,13 +211,9 @@ class DopmDashboardController(
         activity.runOnUiThread {
 
             Toast.makeText(
-
                 activity,
-
                 "$market ainda não possui conector de dados ativo.",
-
                 Toast.LENGTH_LONG
-
             ).show()
         }
     }
@@ -242,25 +225,18 @@ class DopmDashboardController(
 
         activity.runOnUiThread {
 
-            dashboard?.setOnline(
-                false
-            )
+            dashboard?.setOnline(false)
 
             Toast.makeText(
-
                 activity,
-
                 message,
-
                 Toast.LENGTH_SHORT
-
             ).show()
         }
     }
 
     fun clear() {
 
-        dashboard =
-            null
+        dashboard = null
     }
 }
