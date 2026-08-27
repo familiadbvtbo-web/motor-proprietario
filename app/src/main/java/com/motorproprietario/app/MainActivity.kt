@@ -829,47 +829,41 @@ private lateinit var dopmDashboardController:
                 lastQuote =
                     quote
 
-                runOnUiThread {
+                            runOnUiThread {
 
-                    assetView.text =
-                        quote.symbol
+                    dopmDashboardController
+                        .view()
+                        ?.apply {
 
-                    priceView.text =
-                        "Preço: ${
-                            String.format(
-                                "%.5f",
-                                quote.price
+                            setOnline(
+                                true
                             )
-                        }"
 
-                    statusView.text =
-                        if (
-                            System.currentTimeMillis() <
-                                candleApiBackoffUntil
-                        ) {
+                            setApi(
+                                "TWELVE DATA"
+                            )
 
-                            "● ONLINE • TWELVE DATA • CANDLES EM CACHE"
-
-                        } else {
-
-                            "● ONLINE • TWELVE DATA • TEMPO REAL"
+                            setPrice(
+                                String.format(
+                                    "%.5f",
+                                    quote.price
+                                )
+                            )
                         }
                 }
             },
 
-            onError = { error ->
+    onError = { error ->
 
-                runOnUiThread {
+    runOnUiThread {
 
-                    statusView.text =
-                        "ERRO DE CONEXÃO\n" +
-                        (
-                            error.message
-                                ?: "Erro desconhecido"
-                        )
-                }
-            }
-        )
+        dopmDashboardController
+            .view()
+            ?.setOnline(
+                false
+            )
+    }
+}
     }
 
     private fun analyzeMarket() {
