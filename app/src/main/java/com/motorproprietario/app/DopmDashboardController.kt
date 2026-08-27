@@ -59,14 +59,6 @@ class DopmDashboardController(
     /**
      * Conecta os seletores do dashboard
      * à Activity principal.
-     *
-     * Fluxo:
-     *
-     * Dashboard
-     *      ↓
-     * Controller
-     *      ↓
-     * MainActivity
      */
     fun setSelectionListeners(
         marketChanged: (String) -> Unit,
@@ -171,6 +163,9 @@ class DopmDashboardController(
 
     /**
      * Atualiza os componentes matemáticos.
+     *
+     * Os valores são produzidos pelos Engines.
+     * O Controller apenas encaminha os resultados.
      */
     fun updateMathematics(
         probability: Double,
@@ -181,6 +176,10 @@ class DopmDashboardController(
         activity.runOnUiThread {
 
             dashboard?.apply {
+
+                setProbability(
+                    probability
+                )
 
                 setDeterminism(
                     deterministic
