@@ -301,13 +301,6 @@ private lateinit var dopmDashboardController:
     )
 }
 
-connectRealtime()
-
-handler.post(
-    refreshTask
-)
-    }
-
     private fun buildInterface() {
 
         val root =
