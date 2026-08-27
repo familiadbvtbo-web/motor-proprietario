@@ -12,7 +12,13 @@ import android.os.Looper
 import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
-import android.widget.*
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
+import android.widget.FrameLayout
+import android.widget.LinearLayout
+import android.widget.ScrollView
+import android.widget.Spinner
+import android.widget.TextView
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -21,10 +27,13 @@ import java.util.Locale
  * DOPM - Dashboard
  *
  * SOMENTE INTERFACE.
- * Não contém motores matemáticos nem altera cálculos.
+ *
+ * Nenhum cálculo matemático é realizado aqui.
  * Os resultados são recebidos do Controller.
  */
-class DopmDashboardView(context: Context) : FrameLayout(context) {
+class DopmDashboardView(
+    context: Context
+) : FrameLayout(context) {
 
     // =========================================================
     // CORES
@@ -170,7 +179,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     // UTILITÁRIOS
     // =========================================================
 
-    private fun dp(value: Int): Int {
+    private fun dp(
+        value: Int
+    ): Int {
 
         return (
             value *
@@ -282,8 +293,8 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         scroll.addView(
             content,
             ScrollView.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
             )
         )
 
@@ -304,7 +315,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         buildIndicators()
         buildDetailed()
         buildBottomNavigation()
-
         startClock()
     }
 
@@ -387,7 +397,8 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 Typeface.BOLD
             )
 
-            gravity = Gravity.END
+            gravity =
+                Gravity.END
         }
 
         clockView.apply {
@@ -395,7 +406,8 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             text = "◷ --:--:--"
             textSize = 10f
             setTextColor(white)
-            gravity = Gravity.END
+            gravity =
+                Gravity.END
         }
 
         dateView.apply {
@@ -403,7 +415,8 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             text = "▣ --/--/----"
             textSize = 10f
             setTextColor(white)
-            gravity = Gravity.END
+            gravity =
+                Gravity.END
         }
 
         apiView.apply {
@@ -413,7 +426,8 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
             textSize = 9f
             setTextColor(blue)
-            gravity = Gravity.END
+            gravity =
+                Gravity.END
 
             maxLines = 1
 
@@ -426,7 +440,8 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             text = "Preço: --"
             textSize = 9f
             setTextColor(gray)
-            gravity = Gravity.END
+            gravity =
+                Gravity.END
         }
 
         status.addView(onlineView)
@@ -522,9 +537,8 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                     }
                 }
 
-            marketButtons[
-                pair.first
-            ] = button
+            marketButtons[pair.first] =
+                button
 
             marketRow.addView(
                 button,
@@ -533,7 +547,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                     dp(38),
                     1f
                 ).apply {
-
                     marginEnd =
                         dp(3)
                 }
@@ -549,7 +562,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(78),
                 1.5f
             ).apply {
-
                 marginEnd =
                     dp(5)
             }
@@ -615,7 +627,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(78),
                 1.05f
             ).apply {
-
                 marginEnd =
                     dp(5)
             }
@@ -745,13 +756,8 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             bestTimeframeView
         )
 
-        bestRow.addView(
-            bestText
-        )
-
-        best.addView(
-            bestRow
-        )
+        bestRow.addView(bestText)
+        best.addView(bestRow)
 
         content.addView(
             best,
@@ -879,7 +885,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
             text = "→"
             textSize = 30f
-            gravity = Gravity.CENTER
+            gravity =
+                Gravity.CENTER
+
             setTextColor(white)
 
             setTypeface(
@@ -909,7 +917,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(60),
                 dp(76)
             ).apply {
-
                 marginEnd =
                     dp(6)
             }
@@ -953,9 +960,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             includeFontPadding = false
         }
 
-        decision.addView(
-            decisionView
-        )
+        decision.addView(decisionView)
 
         totalView.apply {
 
@@ -971,9 +976,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             maxLines = 1
         }
 
-        decision.addView(
-            totalView
-        )
+        decision.addView(totalView)
 
         row.addView(
             decision,
@@ -982,7 +985,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(82),
                 1f
             ).apply {
-
                 marginEnd =
                     dp(4)
             }
@@ -994,7 +996,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(92),
                 dp(92)
             ).apply {
-
                 marginEnd =
                     dp(4)
             }
@@ -1012,9 +1013,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
         buyView.apply {
 
-            text =
-                "● COMPRA   ---%"
-
+            text = "● COMPRA   ---%"
             textSize = 11f
             setTextColor(green)
             maxLines = 1
@@ -1023,9 +1022,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
         sellView.apply {
 
-            text =
-                "● VENDA    ---%"
-
+            text = "● VENDA    ---%"
             textSize = 11f
             setTextColor(red)
             maxLines = 1
@@ -1034,9 +1031,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
         neutralView.apply {
 
-            text =
-                "● NEUTRO   ---%"
-
+            text = "● NEUTRO   ---%"
             textSize = 11f
             setTextColor(neutral)
             maxLines = 1
@@ -1070,7 +1065,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     }
 
     // =========================================================
-    // INFORMAÇÃO
+    // INFORMAÇÕES
     // =========================================================
 
     private fun information(
@@ -1081,8 +1076,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         color: Int
     ): LinearLayout {
 
-        val box =
-            card()
+        val box = card()
 
         val row =
             LinearLayout(context).apply {
@@ -1189,7 +1183,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(98),
                 1f
             ).apply {
-
                 marginEnd =
                     dp(5)
             }
@@ -1208,7 +1201,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(98),
                 1f
             ).apply {
-
                 marginEnd =
                     dp(5)
             }
@@ -1260,7 +1252,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(82),
                 1f
             ).apply {
-
                 marginEnd =
                     dp(5)
             }
@@ -1292,8 +1283,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
     private fun buildConfidence() {
 
-        val box =
-            card()
+        val box = card()
 
         val row =
             LinearLayout(context).apply {
@@ -1313,7 +1303,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 1f
             ).apply {
-
                 marginEnd =
                     dp(5)
             }
@@ -1330,7 +1319,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 1f
             ).apply {
-
                 marginEnd =
                     dp(5)
             }
@@ -1407,8 +1395,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
     private fun buildIndicators() {
 
-        val box =
-            card()
+        val box = card()
 
         val row =
             LinearLayout(context).apply {
@@ -1437,9 +1424,8 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                     pair.second
                 )
 
-            indicatorViews[
-                pair.first
-            ] = item
+            indicatorViews[pair.first] =
+                item
 
             row.addView(
                 item,
@@ -1476,8 +1462,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
     private fun buildDetailed() {
 
-        val box =
-            card()
+        val box = card()
 
         val header =
             LinearLayout(context).apply {
@@ -1709,22 +1694,23 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
                 append("DECISÃO: ")
                 append(decisionView.text)
-
                 append("\n")
+
                 append(totalView.text)
-
                 append("\n")
+
                 append(buyView.text)
-
                 append("\n")
+
                 append(sellView.text)
-
                 append("\n")
+
                 append(neutralView.text)
 
                 append(
                     "\n\nPROBABILIDADE: "
                 )
+
                 append(
                     probabilityView.text
                 )
@@ -1732,6 +1718,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 append(
                     "\nDETERMINISMO: "
                 )
+
                 append(
                     deterministicView.text
                 )
@@ -1739,6 +1726,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 append(
                     "\nMTF: "
                 )
+
                 append(
                     mtfView.text
                 )
@@ -1746,6 +1734,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 append(
                     "\n\nENTRADA: "
                 )
+
                 append(
                     entryView.text
                 )
@@ -1753,16 +1742,21 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 append(
                     "\nSTOP: "
                 )
+
                 append(
                     stopView.text
                 )
 
                 append("\n")
-                append(targetsView.text)
+
+                append(
+                    targetsView.text
+                )
 
                 append(
                     "\nTIMING: "
                 )
+
                 append(
                     timingView.text
                 )
@@ -1770,6 +1764,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 append(
                     "\nVALIDADE: "
                 )
+
                 append(
                     validityView.text
                 )
@@ -1888,7 +1883,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     }
 
     // =========================================================
-    // LISTENERS
+    // CALLBACKS
     // =========================================================
 
     fun setSelectionListeners(
@@ -1908,7 +1903,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     }
 
     // =========================================================
-    // CONNECTION
+    // ATUALIZAÇÕES
     // =========================================================
 
     fun setOnline(
@@ -1946,10 +1941,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         priceView.text =
             "Preço: $price"
     }
-
-    // =========================================================
-    // DECISÃO
-    // =========================================================
 
     fun setDecision(
         direction: String,
@@ -2034,10 +2025,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             "● NEUTRO   ${format(neutral)}%"
     }
 
-    // =========================================================
-    // MATEMÁTICA RECEBIDA DO CONTROLLER
-    // =========================================================
-
     fun setProbability(
         value: Double
     ) {
@@ -2070,10 +2057,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             value
     }
 
-    // =========================================================
-    // PLANO
-    // =========================================================
-
     fun setTradePlan(
         entry: String,
         stop: String,
@@ -2104,10 +2087,6 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             validity
     }
 
-    // =========================================================
-    // INDICADORES
-    // =========================================================
-
     fun setIndicator(
         name: String,
         value: Double
@@ -2130,7 +2109,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     }
 
     // =========================================================
-    // INDICATOR BAR
+    // INDICADOR
     // =========================================================
 
     private class IndicatorBar(
@@ -2166,8 +2145,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                     text =
                         name
 
-                    textSize =
-                        9f
+                    textSize = 9f
 
                     setTextColor(
                         Color.rgb(
@@ -2243,7 +2221,8 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             barView.scaleX =
                 clamped.toFloat() / 100f
 
-            barView.pivotX = 0f
+            barView.pivotX =
+                0f
         }
 
         private fun dp(
@@ -2258,7 +2237,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     }
 
     // =========================================================
-    // CÍRCULO DE DECISÃO
+    // CÍRCULO DA DECISÃO
     // =========================================================
 
     private class DecisionCircle(
@@ -2279,6 +2258,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
         var accent: Int =
             Color.WHITE
+
             set(newValue) {
 
                 field =
@@ -2348,7 +2328,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                         (
                             value /
                                 100f
-                            )
+                        )
                     ).toFloat(),
                 false,
                 paint
