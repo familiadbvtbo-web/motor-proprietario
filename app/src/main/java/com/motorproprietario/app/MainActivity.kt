@@ -2,13 +2,9 @@ package com.motorproprietario.app
 
 import android.app.AlertDialog
 import android.graphics.Color
-import android.graphics.Typeface
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.view.Gravity
-import android.view.View
-import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import kotlin.concurrent.thread
 import kotlin.math.abs
@@ -17,25 +13,8 @@ import kotlin.math.min
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var statusView: TextView
-    private lateinit var assetView: TextView
-    private lateinit var priceView: TextView
-    private lateinit var resultView: TextView
-    private lateinit var probabilityView: TextView
-    private lateinit var bestTimeframeView: TextView
-    private lateinit var operationView: TextView
-    private lateinit var entryView: TextView
-    private lateinit var stopView: TextView
-    private lateinit var targetsView: TextView
-    private lateinit var timingView: TextView
-    private lateinit var analysisButton: Button
-    
-private lateinit var dopmDashboardController:
-    DopmDashboardController
-    
-    private lateinit var assetSpinner: Spinner
-    private lateinit var timeframeSpinner: Spinner
-    private lateinit var horizonSpinner: Spinner
+    private lateinit var dopmDashboardController:
+        DopmDashboardController
 
     private val handler =
         Handler(Looper.getMainLooper())
@@ -121,619 +100,107 @@ private lateinit var dopmDashboardController:
                 resources.displayMetrics.density
         ).toInt()
 
-    private fun text(
-        value: String,
-        size: Float = 16f,
-        bold: Boolean = false
-    ): TextView {
-
-        return TextView(this).apply {
-
-            text = value
-            textSize = size
-            setTextColor(Color.WHITE)
-
-            if (bold) {
-                setTypeface(
-                    null,
-                    Typeface.BOLD
-                )
-            }
-
-            setPadding(
-                dp(8),
-                dp(8),
-                dp(8),
-                dp(8)
-            )
-        }
-    }
-
-    private fun sectionTitle(
-        value: String
-    ): TextView {
-
-        return text(
-            value,
-            14f,
-            true
-        ).apply {
-
-            setTextColor(
-                Color.rgb(
-                    190,
-                    190,
-                    190
-                )
-            )
-
-            setPadding(
-                dp(8),
-                dp(12),
-                dp(8),
-                dp(4)
-            )
-        }
-    }
-
-    private fun divider(): View {
-
-        return View(this).apply {
-
-            setBackgroundColor(
-                Color.rgb(
-                    70,
-                    70,
-                    70
-                )
-            )
-
-            layoutParams =
-                LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    dp(1)
-                ).apply {
-
-                    topMargin =
-                        dp(6)
-
-                    bottomMargin =
-                        dp(6)
-                }
-        }
-    }
-
     override fun onCreate(
-    savedInstanceState: Bundle?
-) {
+        savedInstanceState: Bundle?
+    ) {
 
-    super.onCreate(
-        savedInstanceState
-    )
-
-    dopmDashboardController =
-        DopmDashboardController(this)
-
-    dopmDashboardController.install()
-
-    dopmDashboardController.setSelectionListeners(
-
-        marketChanged = { market ->
-
-            when (market) {
-
-                "FOREX" -> {
-
-                    selectedAsset =
-                        "EUR/USD"
-
-                    selectedTimeframe =
-                        "M15"
-
-                    resetForNewAsset()
-
-                    connectRealtime()
-                }
-
-                "CRIPTO" -> {
-
-                    selectedAsset =
-                        "BTC/USD"
-
-                    selectedTimeframe =
-                        "M15"
-
-                    resetForNewAsset()
-
-                    connectRealtime()
-                }
-
-                "B3" -> {
-
-                    selectedAsset =
-                        "IBOV"
-
-                    selectedTimeframe =
-                        "M15"
-
-                    resetForNewAsset()
-
-                    connectRealtime()
-                }
-            }
-        },
-
-        assetChanged = { asset ->
-
-            if (
-                asset.isNotBlank() &&
-                asset != selectedAsset
-            ) {
-
-                selectedAsset =
-                    asset
-
-                resetForNewAsset()
-
-                connectRealtime()
-            }
-        },
-
-        timeframeChanged = { timeframe ->
-
-            if (
-                timeframe.isNotBlank() &&
-                timeframe != selectedTimeframe
-            ) {
-
-                selectedTimeframe =
-                    timeframe
-
-                analyzeMarket()
-            }
-        }
-    )
-
-    connectRealtime()
-
-    handler.post(
-        refreshTask
-    )
-}
-
-    private fun buildInterface() {
-
-        val root =
-            LinearLayout(this).apply {
-
-                orientation =
-                    LinearLayout.VERTICAL
-
-                setPadding(
-                    dp(16),
-                    dp(18),
-                    dp(16),
-                    dp(24)
-                )
-
-                setBackgroundColor(
-                    Color.rgb(
-                        18,
-                        15,
-                        22
-                    )
-                )
-            }
-
-        val title =
-            text(
-                "MOTOR PROPRIETÁRIO",
-                25f,
-                true
-            )
-
-        title.gravity =
-            Gravity.CENTER_HORIZONTAL
-
-        root.addView(title)
-
-        val subtitle =
-            text(
-                "ANÁLISE DE MERCADO EM TEMPO REAL",
-                13f,
-                false
-            )
-
-        subtitle.gravity =
-            Gravity.CENTER_HORIZONTAL
-
-        root.addView(
-            subtitle
+        super.onCreate(
+            savedInstanceState
         )
 
-        root.addView(
-            divider()
-        )
+        /*
+         * A nova interface DOPM é instalada aqui.
+         *
+         * Não utilizamos mais a interface antiga
+         * criada diretamente nesta Activity.
+         */
+        dopmDashboardController =
+            DopmDashboardController(this)
 
-        root.addView(
-            sectionTitle(
-                "ATIVO"
-            )
-        )
+        dopmDashboardController.install()
 
-        assetSpinner =
-            Spinner(this)
+        dopmDashboardController.setSelectionListeners(
 
-        val assets =
-            listOf(
-                "EUR/USD",
-                "GBP/USD",
-                "USD/JPY",
-                "USD/CHF",
-                "AUD/USD",
-                "USD/CAD",
-                "NZD/USD",
-                "EUR/GBP",
-                "EUR/JPY",
-                "GBP/JPY"
-            )
+            marketChanged = { market ->
 
-        assetSpinner.adapter =
-            ArrayAdapter(
-                this,
-                android.R.layout.simple_spinner_dropdown_item,
-                assets
-            )
+                when (market) {
 
-        assetSpinner.setSelection(
-            assets.indexOf(
-                selectedAsset
-            ).coerceAtLeast(0)
-        )
+                    "FOREX" -> {
 
-        assetSpinner.onItemSelectedListener =
-            object :
-                AdapterView.OnItemSelectedListener {
+                        selectedAsset =
+                            "EUR/USD"
 
-                override fun onItemSelected(
-                    parent: AdapterView<*>?,
-                    view: android.view.View?,
-                    position: Int,
-                    id: Long
-                ) {
+                        selectedTimeframe =
+                            "M15"
 
-                    val newAsset =
-                        assets[position]
+                        resetForNewAsset()
 
-                    if (
-                        newAsset ==
-                            selectedAsset
-                    ) {
-                        return
+                        connectRealtime()
                     }
 
+                    "CRIPTO" -> {
+
+                        selectedAsset =
+                            "BTC/USD"
+
+                        selectedTimeframe =
+                            "M15"
+
+                        resetForNewAsset()
+
+                        connectRealtime()
+                    }
+
+                    "B3" -> {
+
+                        selectedAsset =
+                            "IBOV"
+
+                        selectedTimeframe =
+                            "M15"
+
+                        resetForNewAsset()
+
+                        connectRealtime()
+                    }
+                }
+            },
+
+            assetChanged = { asset ->
+
+                if (
+                    asset.isNotBlank() &&
+                    asset != selectedAsset
+                ) {
+
                     selectedAsset =
-                        newAsset
+                        asset
 
                     resetForNewAsset()
 
                     connectRealtime()
                 }
+            },
 
-                override fun onNothingSelected(
-                    parent: AdapterView<*>?
-                ) {
-                }
-            }
+            timeframeChanged = { timeframe ->
 
-        root.addView(
-            assetSpinner
-        )
-
-        root.addView(
-            sectionTitle(
-                "TIMEFRAME ESCOLHIDO"
-            )
-        )
-
-        timeframeSpinner =
-            Spinner(this)
-
-        val timeframes =
-            listOf(
-                "M1",
-                "M5",
-                "M15",
-                "M30",
-                "H1",
-                "H4",
-                "D1"
-            )
-
-        timeframeSpinner.adapter =
-            ArrayAdapter(
-                this,
-                android.R.layout.simple_spinner_dropdown_item,
-                timeframes
-            )
-
-        timeframeSpinner.setSelection(
-            timeframes.indexOf(
-                selectedTimeframe
-            ).coerceAtLeast(0)
-        )
-
-        timeframeSpinner.onItemSelectedListener =
-            object :
-                AdapterView.OnItemSelectedListener {
-
-                override fun onItemSelected(
-                    parent: AdapterView<*>?,
-                    view: android.view.View?,
-                    position: Int,
-                    id: Long
+                if (
+                    timeframe.isNotBlank() &&
+                    timeframe != selectedTimeframe
                 ) {
 
                     selectedTimeframe =
-                        timeframes[position]
+                        timeframe
 
                     analyzeMarket()
                 }
-
-                override fun onNothingSelected(
-                    parent: AdapterView<*>?
-                ) {
-                }
             }
-
-        root.addView(
-            timeframeSpinner
         )
 
-        root.addView(
-            sectionTitle(
-                "VISÃO TEMPORAL"
-            )
-        )
+        connectRealtime()
 
-        horizonSpinner =
-            Spinner(this)
-
-        val horizons =
-            listOf(
-                "GERAL",
-                "DIA",
-                "SEMANA",
-                "MÊS"
-            )
-
-        horizonSpinner.adapter =
-            ArrayAdapter(
-                this,
-                android.R.layout.simple_spinner_dropdown_item,
-                horizons
-            )
-
-        horizonSpinner.setSelection(0)
-
-        horizonSpinner.onItemSelectedListener =
-            object :
-                AdapterView.OnItemSelectedListener {
-
-                override fun onItemSelected(
-                    parent: AdapterView<*>?,
-                    view: android.view.View?,
-                    position: Int,
-                    id: Long
-                ) {
-
-                    selectedHorizon =
-                        horizons[position]
-
-                    analyzeMarket()
-                }
-
-                override fun onNothingSelected(
-                    parent: AdapterView<*>?
-                ) {
-                }
-            }
-
-        root.addView(
-            horizonSpinner
-        )
-
-        root.addView(
-            divider()
-        )
-
-        root.addView(
-            sectionTitle(
-                "MERCADO"
-            )
-        )
-
-        assetView =
-            text(
-                selectedAsset,
-                22f,
-                true
-            )
-
-        root.addView(
-            assetView
-        )
-
-        priceView =
-            text(
-                "Preço: aguardando..."
-            )
-
-        root.addView(
-            priceView
-        )
-
-        statusView =
-            text(
-                "CONECTANDO..."
-            )
-
-        root.addView(
-            statusView
-        )
-
-        root.addView(
-            divider()
-        )
-
-        root.addView(
-            sectionTitle(
-                "MELHOR TIMEFRAME DO MOTOR"
-            )
-        )
-
-        bestTimeframeView =
-            text(
-                "Aguardando análise...",
-                20f,
-                true
-            )
-
-        root.addView(
-            bestTimeframeView
-        )
-
-        root.addView(
-            divider()
-        )
-
-        root.addView(
-            sectionTitle(
-                "RESULTADO FINAL"
-            )
-        )
-
-        resultView =
-            text(
-                "⚪ AGUARDAR",
-                28f,
-                true
-            ).apply {
-
-                gravity =
-                    Gravity.CENTER
-
-                setPadding(
-                    dp(8),
-                    dp(18),
-                    dp(8),
-                    dp(18)
-                )
-            }
-
-        root.addView(
-            resultView
-        )
-
-        probabilityView =
-            text(
-                "COMPRA ---%   VENDA ---%   NEUTRO ---%",
-                15f,
-                true
-            ).apply {
-
-                gravity =
-                    Gravity.CENTER
-            }
-
-        root.addView(
-            probabilityView
-        )
-
-        operationView =
-            text(
-                "AGUARDANDO DADOS...",
-                18f,
-                true
-            )
-
-        root.addView(
-            operationView
-        )
-
-        root.addView(
-            divider()
-        )
-
-        root.addView(
-            sectionTitle(
-                "PLANO OPERACIONAL"
-            )
-        )
-
-        entryView =
-            text(
-                "Entrada: --"
-            )
-
-        root.addView(
-            entryView
-        )
-
-        stopView =
-            text(
-                "Stop: --"
-            )
-
-        root.addView(
-            stopView
-        )
-
-        targetsView =
-            text(
-                "TP1: --\nTP2: --\nTP3: --\nR:R: --"
-            )
-
-        root.addView(
-            targetsView
-        )
-
-        timingView =
-            text(
-                "Timing: --\nValidade: --"
-            )
-
-        root.addView(
-            timingView
-        )
-
-        root.addView(
-            divider()
-        )
-
-        analysisButton =
-            Button(this).apply {
-
-                text =
-                    "🔎 ANÁLISE DETALHADA"
-
-                setOnClickListener {
-                    showDetailedAnalysis()
-                }
-            }
-
-        root.addView(
-            analysisButton
-        )
-
-        val scroll =
-            ScrollView(this).apply {
-
-                addView(root)
-            }
-
-        setContentView(
-            scroll
+        handler.post(
+            refreshTask
         )
     }
 
@@ -758,7 +225,7 @@ private lateinit var dopmDashboardController:
         sequenceStage =
             SequenceStage.S0
 
-                latestDetailedAnalysis =
+        latestDetailedAnalysis =
             "Aguardando dados reais..."
 
         dopmDashboardController
@@ -788,6 +255,10 @@ private lateinit var dopmDashboardController:
                     100.0
                 )
 
+                setProbability(
+                    0.0
+                )
+
                 setDeterminism(
                     0.0
                 )
@@ -815,63 +286,63 @@ private lateinit var dopmDashboardController:
             }
     }
 
-    
-private fun connectRealtime() {
+    private fun connectRealtime() {
 
-    quoteClient.connect(
+        quoteClient.connect(
 
-        symbols =
-            listOf(
-                selectedAsset
-            ),
+            symbols =
+                listOf(
+                    selectedAsset
+                ),
 
-        onQuote = { quote ->
+            onQuote = { quote ->
 
-            lastQuote =
-                quote
+                lastQuote =
+                    quote
 
-            runOnUiThread {
+                runOnUiThread {
 
-                dopmDashboardController
-                    .view()
-                    ?.apply {
+                    dopmDashboardController
+                        .view()
+                        ?.apply {
 
-                        setOnline(
-                            true
-                        )
-
-                        setApi(
-                            "TWELVE DATA"
-                        )
-
-                        setPrice(
-                            String.format(
-                                "%.5f",
-                                quote.price
+                            setOnline(
+                                true
                             )
+
+                            setApi(
+                                "TWELVE DATA"
+                            )
+
+                            setPrice(
+                                String.format(
+                                    "%.5f",
+                                    quote.price
+                                )
+                            )
+                        }
+                }
+            },
+
+            onError = { _ ->
+
+                runOnUiThread {
+
+                    dopmDashboardController
+                        .view()
+                        ?.setOnline(
+                            false
                         )
-                    }
+                }
             }
-        },
+        )
+    }
 
-        onError = { error ->
+    private fun analyzeMarket() {
 
-            runOnUiThread {
-
-                dopmDashboardController
-                    .view()
-                    ?.setOnline(
-                        false
-                    )
-            }
-        }
-    )
-}
-
-private fun analyzeMarket() {
-    
-
-        if (analyzing) {
+        if (
+            analyzing
+        ) {
             return
         }
 
@@ -908,33 +379,76 @@ private fun analyzeMarket() {
                     )
                 }
 
-                if (candles.isEmpty()) {
-    runOnUiThread {
-        dopmDashboardController.view()?.apply {
-            setOnline(false)
-            setApi("TWELVE DATA")
-            setPrice("--")
-            setDecision("AGUARDAR", 0.0)
-            setProbabilities(0.0, 0.0, 100.0)
-            setDeterminism(0.0)
-            setMtf(0.0)
-            setBestTimeframe("--")
-            setTradePlan(
-                "--",
-                "--",
-                "--",
-                "--",
-                "--"
-            )
-            setTiming(
-                "AGUARDAR",
-                "AGUARDANDO CANDLES REAIS"
-            )
-        }
-    }
-    return@thread
-}
+                if (
+                    candles.isEmpty()
+                ) {
 
+                    runOnUiThread {
+
+                        dopmDashboardController
+                            .view()
+                            ?.apply {
+
+                                setOnline(
+                                    false
+                                )
+
+                                setApi(
+                                    "TWELVE DATA"
+                                )
+
+                                setPrice(
+                                    "--"
+                                )
+
+                                setDecision(
+                                    "AGUARDAR",
+                                    0.0
+                                )
+
+                                setProbabilities(
+                                    0.0,
+                                    0.0,
+                                    100.0
+                                )
+
+                                setProbability(
+                                    0.0
+                                )
+
+                                setDeterminism(
+                                    0.0
+                                )
+
+                                setMtf(
+                                    0.0
+                                )
+
+                                setBestTimeframe(
+                                    "--"
+                                )
+
+                                setTradePlan(
+                                    "--",
+                                    "--",
+                                    "--",
+                                    "--",
+                                    "--"
+                                )
+
+                                setTiming(
+                                    "AGUARDAR",
+                                    "AGUARDANDO CANDLES REAIS"
+                                )
+                            }
+                    }
+
+                    return@thread
+                }
+
+                /*
+                 * ANALISADOR DE MERCADO EM TEMPO REAL
+                 */
                 val realtime =
                     RealtimeMarketAnalyzer.analyze(
 
@@ -972,6 +486,7 @@ private fun analyzeMarket() {
                 val higherMetrics =
                     realtime.metrics
                         .filterKeys {
+
                             timeframeRank(it) >
                                 timeframeRank(
                                     selectedTimeframe
@@ -980,6 +495,9 @@ private fun analyzeMarket() {
                         .values
                         .toList()
 
+                /*
+                 * MOTOR DETERMINÍSTICO
+                 */
                 val deterministic =
                     DeterministicEngine.calculate(
 
@@ -1002,6 +520,9 @@ private fun analyzeMarket() {
                         )
                     )
 
+                /*
+                 * MOTOR PROBABILÍSTICO
+                 */
                 val probability =
                     ProbabilityEngine.calculate(
 
@@ -1040,6 +561,15 @@ private fun analyzeMarket() {
                         )
                     )
 
+                /*
+                 * DECISÃO FINAL
+                 *
+                 * Combina:
+                 * - probabilidade
+                 * - determinismo
+                 * - risco de falso sinal
+                 * - confluência MTF
+                 */
                 val finalProbabilities =
                     combineFinalProbabilities(
 
@@ -1052,6 +582,9 @@ private fun analyzeMarket() {
                         realtime.mtfConfluence
                     )
 
+                /*
+                 * ENCONTRA O MELHOR TIMEFRAME
+                 */
                 val bestTimeframe =
                     findBestTimeframe(
                         realtime,
@@ -1064,6 +597,9 @@ private fun analyzeMarket() {
                     ]
                         ?: selectedMetrics
 
+                /*
+                 * DETERMINISMO DO MELHOR TIMEFRAME
+                 */
                 val bestDeterministic =
                     DeterministicEngine.calculate(
 
@@ -1084,6 +620,7 @@ private fun analyzeMarket() {
                             higherTimeframes =
                                 realtime.metrics
                                     .filterKeys {
+
                                         timeframeRank(it) >
                                             timeframeRank(
                                                 bestTimeframe
@@ -1094,6 +631,9 @@ private fun analyzeMarket() {
                         )
                     )
 
+                /*
+                 * PROBABILIDADE DO MELHOR TIMEFRAME
+                 */
                 val bestProbability =
                     ProbabilityEngine.calculate(
 
@@ -1144,11 +684,17 @@ private fun analyzeMarket() {
                         realtime.mtfConfluence
                     )
 
+                /*
+                 * DECISÃO FINAL DO MOTOR
+                 */
                 val bestDirection =
                     finalDirection(
                         bestFinal
                     )
 
+                /*
+                 * PLANO OPERACIONAL
+                 */
                 val entryPlan =
                     EntryPlanEngine.calculate(
 
@@ -1183,6 +729,9 @@ private fun analyzeMarket() {
                         )
                     )
 
+                /*
+                 * SEQUÊNCIA DO MOTOR
+                 */
                 val sequence =
                     SequenceEngine.advance(
 
@@ -1232,6 +781,9 @@ private fun analyzeMarket() {
                 sequenceStage =
                     sequence.stage
 
+                /*
+                 * ANÁLISE DETALHADA
+                 */
                 val detailed =
                     buildDetailedAnalysis(
 
@@ -1286,45 +838,78 @@ private fun analyzeMarket() {
                             bestTimeframe,
 
                         entryPlan =
-                            entryPlan
+                            entryPlan,
+
+                        deterministic =
+                            bestDeterministic
                     )
                 }
 
-            }catch (
-    error: Exception
-) {
+            } catch (
+                error: Exception
+            ) {
 
-    runOnUiThread {
+                /*
+                 * IMPORTANTE:
+                 *
+                 * Um erro de análise não pode mais
+                 * derrubar a Activity.
+                 */
+                runOnUiThread {
 
-        dopmDashboardController
-            .view()
-            ?.apply {
+                    dopmDashboardController
+                        .view()
+                        ?.apply {
 
-                setOnline(
-                    false
-                )
+                            setOnline(
+                                false
+                            )
 
-                setApi(
-                    "TWELVE DATA"
-                )
+                            setApi(
+                                "TWELVE DATA"
+                            )
 
-                setDecision(
-                    "AGUARDAR",
-                    0.0
-                )
+                            setDecision(
+                                "AGUARDAR",
+                                0.0
+                            )
 
-                setProbabilities(
-                    0.0,
-                    0.0,
-                    100.0
-                )
+                            setProbabilities(
+                                0.0,
+                                0.0,
+                                100.0
+                            )
 
-                setTiming(
-                    "ERRO NA ANÁLISE",
-                    "AGUARDAR"
-                )
-            }
-    }
+                            setProbability(
+                                0.0
+                            )
+
+                            setDeterminism(
+                                0.0
+                            )
+
+                            setMtf(
+                                0.0
+                            )
+
+                            setBestTimeframe(
+                                "--"
+                            )
+
+                            setTradePlan(
+                                "--",
+                                "--",
+                                "--",
+                                "--",
+                                "--"
+                            )
+
+                            setTiming(
+                                "ERRO NA ANÁLISE",
+                                "AGUARDAR"
+                            )
+                        }
+                }
 
             } finally {
 
@@ -1335,6 +920,7 @@ private fun analyzeMarket() {
     }
 
     private fun updateMainScreen(
+
         realtime:
             RealtimeAnalysis,
 
@@ -1348,7 +934,10 @@ private fun analyzeMarket() {
             String,
 
         entryPlan:
-            EntryPlanResult
+            EntryPlanResult,
+
+        deterministic:
+            DeterministicResult
     ) {
 
         val buy =
@@ -1361,7 +950,9 @@ private fun analyzeMarket() {
             finalProbabilities.third
 
         val total =
-            when (direction) {
+            when (
+                direction
+            ) {
 
                 "COMPRA" ->
                     buy
@@ -1373,288 +964,174 @@ private fun analyzeMarket() {
                     neutral
             }
 
-                    dopmDashboardController.updateConnection(
+        /*
+         * A partir daqui SOMENTE a nova interface
+         * é atualizada.
+         *
+         * Não existem mais referências aos
+         * TextViews da interface antiga.
+         */
+
+        dopmDashboardController.updateConnection(
+
             online = true,
+
             api = "TWELVE DATA"
         )
 
         dopmDashboardController.updateMarket(
-            price = realtime.market.price,
-            asset = selectedAsset
+
+            price =
+                realtime.market.price,
+
+            asset =
+                selectedAsset
         )
 
         dopmDashboardController.updateDecision(
-            direction = direction,
-            buy = buy,
-            sell = sell,
-            neutral = neutral
+
+            direction =
+                direction,
+
+            buy =
+                buy,
+
+            sell =
+                sell,
+
+            neutral =
+                neutral
         )
 
+        /*
+         * PROBABILIDADE:
+         * resultado vindo do motor probabilístico
+         */
+        dopmDashboardController
+            .view()
+            ?.setProbability(
+                max(
+                    buy,
+                    sell
+                )
+            )
+
+        /*
+         * DETERMINISMO:
+         * resultado do motor determinístico
+         */
+        dopmDashboardController
+            .view()
+            ?.setDeterminism(
+                deterministic.confidence
+            )
+
+        /*
+         * CONFLUÊNCIA MTF
+         */
+        dopmDashboardController
+            .view()
+            ?.setMtf(
+                realtime.mtfConfluence
+            )
+
         dopmDashboardController.updateMathematics(
+
             probability =
-                maxOf(buy, sell),
+                max(
+                    buy,
+                    sell
+                ),
+
             deterministic =
-                realtime.metrics[
-                    bestTimeframe
-                ]?.let {
-                    DeterministicEngine.calculate(
-                        DeterministicInput(
-                            metrics = it,
-                            mtfConfluence =
-                                realtime.mtfConfluence,
-                            falseSignalRisk =
-                                realtime.fsi,
-                            currentPrice =
-                                realtime.market.price,
-                            higherTimeframes =
-                                emptyList()
-                        )
-                    ).confidence
-                } ?: 0.0,
+                deterministic.confidence,
+
             mtf =
                 realtime.mtfConfluence
         )
 
         dopmDashboardController.updateBestTimeframe(
+
             bestTimeframe
         )
 
-        dopmDashboardController.updateTradePlan(
-            entry = entryPlan.entry,
-            stop = entryPlan.stop,
-            tp1 = entryPlan.tp1,
-            tp2 = entryPlan.tp2,
-            tp3 = entryPlan.tp3
-        )
-
-        dopmDashboardController.updateTiming(
-            timing = entryPlan.timing,
-            validity =
-                "${entryPlan.validityMinutes} min"
-        )
-
-        bestTimeframeView.text =
-            "⭐ $bestTimeframe"
-
-        probabilityView.text =
-            "COMPRA ${
-                "%.1f".format(
-                    buy
-                )
-            }%   •   VENDA ${
-                "%.1f".format(
-                    sell
-                )
-            }%   •   NEUTRO ${
-                "%.1f".format(
-                    neutral
-                )
-            }%"
-
-        resultView.text =
-            when (direction) {
-
-                "COMPRA" ->
-                    "🟢 COMPRA\n${
-                        "%.1f".format(
-                            total
-                        )
-                    }%"
-
-                "VENDA" ->
-                    "🔴 VENDA\n${
-                        "%.1f".format(
-                            total
-                        )
-                    }%"
-
-                else ->
-                    "⚪ AGUARDAR\n${
-                        "%.1f".format(
-                            total
-                        )
-                    }%"
-            }
-
+        /*
+         * PLANO OPERACIONAL
+         */
         if (
             direction ==
                 "NEUTRO" ||
             !entryPlan.valid
         ) {
 
-            operationView.text =
-                "AGUARDAR — SEM DIREÇÃO OPERACIONAL"
+            dopmDashboardController
+                .updateTradePlan(
 
-            entryView.text =
-                "Entrada: não disponível"
+                    entry =
+                        Double.NaN,
 
-            stopView.text =
-                "Stop: não disponível"
+                    stop =
+                        Double.NaN,
 
-            targetsView.text =
-                "TP1: não disponível\n" +
-                "TP2: não disponível\n" +
-                "TP3: não disponível\n" +
-                "R:R: não disponível"
+                    tp1 =
+                        Double.NaN,
 
-            timingView.text =
-                "Timing: aguardar confirmação\n" +
-                "Validade: --"
+                    tp2 =
+                        Double.NaN,
+
+                    tp3 =
+                        Double.NaN
+                )
+
+            dopmDashboardController.updateTiming(
+
+                timing =
+                    "AGUARDAR",
+
+                validity =
+                    "--"
+            )
 
         } else {
 
-            operationView.text =
-                if (
-                    direction ==
-                        "COMPRA"
-                ) {
-                    "🟢 ENTRADA DE COMPRA"
-                } else {
-                    "🔴 ENTRADA DE VENDA"
-                }
+            dopmDashboardController
+                .updateTradePlan(
 
-            entryView.text =
-                "Entrada: ${
-                    "%.5f".format(
-                        entryPlan.entry
-                    )
-                }\n" +
-                "Zona: ${
-                    "%.5f".format(
-                        entryPlan.zoneLow
-                    )
-                } – ${
-                    "%.5f".format(
-                        entryPlan.zoneHigh
-                    )
-                }"
+                    entry =
+                        entryPlan.entry,
 
-            stopView.text =
-                "Stop: ${
-                    "%.5f".format(
-                        entryPlan.stop
-                    )
-                }"
+                    stop =
+                        entryPlan.stop,
 
-            targetsView.text =
-                "TP1: ${
-                    "%.5f".format(
-                        entryPlan.tp1
-                    )
-                }   R:R 1:${entryPlan.rr1}\n" +
-                "TP2: ${
-                    "%.5f".format(
-                        entryPlan.tp2
-                    )
-                }   R:R 1:${entryPlan.rr2}\n" +
-                "TP3: ${
-                    "%.5f".format(
+                    tp1 =
+                        entryPlan.tp1,
+
+                    tp2 =
+                        entryPlan.tp2,
+
+                    tp3 =
                         entryPlan.tp3
-                    )
-                }   R:R 1:${entryPlan.rr3}"
+                )
 
-            timingView.text =
-                "Timing: ${
-                    entryPlan.timing
-                }\n" +
-                "Validade: ${
-                    entryPlan.validityMinutes
-                } minutos\n" +
-                "Expira: ${
-                    formatExpiry(
-                        entryPlan.expiresAt
-                    )
-                }"
+            dopmDashboardController
+                .updateTiming(
+
+                    timing =
+                        entryPlan.timing,
+
+                    validity =
+                        "${entryPlan.validityMinutes} min"
+                )
         }
 
-        statusView.text =
-            if (
-                System.currentTimeMillis() <
-                    candleApiBackoffUntil
-            ) {
-
-                "● ONLINE • CANDLES EM CACHE"
-
-            } else {
-
-                "● ONLINE • DADOS REAIS • WEBSOCKET ATIVO"
-            }
-    }
-
-    private fun showDetailedAnalysis() {
-
-        val content =
-            LinearLayout(this).apply {
-
-                orientation =
-                    LinearLayout.VERTICAL
-
-                setPadding(
-                    dp(16),
-                    dp(8),
-                    dp(16),
-                    dp(8)
-                )
-
-                setBackgroundColor(
-                    Color.rgb(
-                        18,
-                        15,
-                        22
-                    )
-                )
-            }
-
-        val detailedText =
-            TextView(this).apply {
-
-                text =
-                    latestDetailedAnalysis
-
-                textSize =
-                    14f
-
-                setTextColor(
-                    Color.WHITE
-                )
-
-                setPadding(
-                    dp(4),
-                    dp(4),
-                    dp(4),
-                    dp(20)
-                )
-            }
-
-        content.addView(
-            detailedText
-        )
-
-        val scroll =
-            ScrollView(this).apply {
-
-                addView(
-                    content
-                )
-            }
-
-        val dialog =
-            AlertDialog.Builder(
-                this
-            )
-                .setTitle(
-                    "ANÁLISE DETALHADA"
-                )
-                .setView(
-                    scroll
-                )
-                .setPositiveButton(
-                    "FECHAR",
-                    null
-                )
-                .create()
-
-        dialog.show()
+        /*
+         * Mantém o valor calculado disponível para
+         * o fluxo da Activity sem criar qualquer
+         * número artificial.
+         */
+        @Suppress("UNUSED_VARIABLE")
+        val finalTotal =
+            total
     }
 
     private fun updateCandles(
@@ -1768,8 +1245,11 @@ private fun analyzeMarket() {
 
                     runOnUiThread {
 
-                        statusView.text =
-                            "● ONLINE • API EM LIMITE TEMPORÁRIO • USANDO CACHE"
+                        dopmDashboardController
+                            .view()
+                            ?.setApi(
+                                "TWELVE DATA • CACHE"
+                            )
                     }
 
                     break
@@ -1779,6 +1259,7 @@ private fun analyzeMarket() {
     }
 
     private fun combineFinalProbabilities(
+
         probability:
             ProbabilityResult,
 
@@ -1792,16 +1273,6 @@ private fun analyzeMarket() {
             Double
     ): Triple<Double, Double, Double> {
 
-        /*
-         * Os pesos vêm do CalibrationRuntime.
-         *
-         * Sem calibração aceita:
-         * 50% probabilidade
-         * 50% determinismo
-         *
-         * Com calibração aceita:
-         * utiliza os pesos persistidos.
-         */
         val weights =
             calibrationRuntime.weights()
 
@@ -1952,6 +1423,7 @@ private fun analyzeMarket() {
     }
 
     private fun findBestTimeframe(
+
         realtime:
             RealtimeAnalysis,
 
@@ -1986,6 +1458,7 @@ private fun analyzeMarket() {
             val higher =
                 realtime.metrics
                     .filterKeys {
+
                         timeframeRank(it) >
                             timeframeRank(
                                 timeframe
@@ -2153,6 +1626,7 @@ private fun analyzeMarket() {
         }
 
     private fun fibonacciEvidence(
+
         candles:
             List<MarketCandle>?,
 
@@ -2275,6 +1749,7 @@ private fun analyzeMarket() {
     }
 
     private fun buildDetailedAnalysis(
+
         realtime:
             RealtimeAnalysis,
 
@@ -2996,8 +2471,7 @@ private fun analyzeMarket() {
                 "CANDLES: ${
                     candles.values.sumOf {
                         it.size
-                    }
-                }\n"
+                    }\n"
             )
 
             append(
@@ -3114,6 +2588,45 @@ private fun analyzeMarket() {
                 timestamp
             )
         )
+    }
+
+    private fun showDetailedAnalysis() {
+
+        val content =
+            android.widget.TextView(this).apply {
+
+                text =
+                    latestDetailedAnalysis
+
+                textSize =
+                    14f
+
+                setTextColor(
+                    Color.WHITE
+                )
+
+                setPadding(
+                    dp(16),
+                    dp(8),
+                    dp(16),
+                    dp(20)
+                )
+            }
+
+        AlertDialog.Builder(
+            this
+        )
+            .setTitle(
+                "ANÁLISE DETALHADA"
+            )
+            .setView(
+                content
+            )
+            .setPositiveButton(
+                "FECHAR",
+                null
+            )
+            .show()
     }
 
     override fun onDestroy() {
