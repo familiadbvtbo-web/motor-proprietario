@@ -1276,19 +1276,42 @@ private fun analyzeMarket() {
                     )
                 }
 
-            } catch (
-                error: Exception
-            ) {
+            catch (
+    error: Exception
+) {
 
-                runOnUiThread {
+    runOnUiThread {
 
-                    operationView.text =
-                        "ERRO NA ANÁLISE\n\n" +
-                        (
-                            error.message
-                                ?: "Erro desconhecido"
-                        )
-                }
+        dopmDashboardController
+            .view()
+            ?.apply {
+
+                setOnline(
+                    false
+                )
+
+                setApi(
+                    "TWELVE DATA"
+                )
+
+                setDecision(
+                    "AGUARDAR",
+                    0.0
+                )
+
+                setProbabilities(
+                    0.0,
+                    0.0,
+                    100.0
+                )
+
+                setTiming(
+                    "ERRO NA ANÁLISE",
+                    "AGUARDAR"
+                )
+            }
+    }
+}
 
             } finally {
 
