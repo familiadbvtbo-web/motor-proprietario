@@ -1276,7 +1276,7 @@ private fun analyzeMarket() {
                     )
                 }
 
-            catch (
+            }catch (
     error: Exception
 ) {
 
