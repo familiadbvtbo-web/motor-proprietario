@@ -1,17 +1,17 @@
 package com.motorproprietario.app
 
 import android.app.Activity
-import android.graphics.Color
-import android.view.View
 import android.widget.Toast
 
 /**
  * Controlador da interface principal DOPM.
  *
- * Este arquivo NÃO calcula mercado.
+ * Responsabilidade:
  *
- * Ele apenas conecta os resultados produzidos pelo
- * Motor Proprietário à nova interface.
+ * - instalar o dashboard;
+ * - receber eventos dos seletores;
+ * - encaminhar os resultados reais do motor;
+ * - não executar cálculos matemáticos.
  *
  * A lógica matemática permanece nos Engines existentes.
  */
@@ -54,6 +54,37 @@ class DopmDashboardController(
         DopmDashboardView? {
 
         return dashboard
+    }
+
+    /**
+     * Conecta os seletores do dashboard
+     * à Activity principal.
+     *
+     * Fluxo:
+     *
+     * Dashboard
+     *      ↓
+     * Controller
+     *      ↓
+     * MainActivity
+     */
+    fun setSelectionListeners(
+        marketChanged: (String) -> Unit,
+        assetChanged: (String) -> Unit,
+        timeframeChanged: (String) -> Unit
+    ) {
+
+        dashboard?.setSelectionListeners(
+
+            marketChanged =
+                marketChanged,
+
+            assetChanged =
+                assetChanged,
+
+            timeframeChanged =
+                timeframeChanged
+        )
     }
 
     /**
@@ -104,7 +135,7 @@ class DopmDashboardController(
     /**
      * Atualiza o resultado principal.
      *
-     * total representa a maior probabilidade
+     * TOTAL representa a maior probabilidade
      * direcional entre compra e venda.
      */
     fun updateDecision(
@@ -243,7 +274,8 @@ class DopmDashboardController(
     }
 
     /**
-     * Mostra aviso de mercado ainda não conectado.
+     * Mostra aviso de mercado ainda
+     * não conectado.
      */
     fun marketNotConnected(
         market: String
@@ -263,7 +295,8 @@ class DopmDashboardController(
      * Define visualmente o estado de erro.
      */
     fun showOffline(
-        message: String = "Conexão indisponível"
+        message: String =
+            "Conexão indisponível"
     ) {
 
         activity.runOnUiThread {
