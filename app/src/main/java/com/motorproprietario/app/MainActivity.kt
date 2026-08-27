@@ -908,18 +908,32 @@ private fun analyzeMarket() {
                     )
                 }
 
-                if (
-                    candles.isEmpty()
-                ) {
-
-                    runOnUiThread {
-
-                        operationView.text =
-                            "AGUARDANDO CANDLES REAIS..."
-                    }
-
-                    return@thread
-                }
+                if (candles.isEmpty()) {
+    runOnUiThread {
+        dopmDashboardController.view()?.apply {
+            setOnline(false)
+            setApi("TWELVE DATA")
+            setPrice("--")
+            setDecision("AGUARDAR", 0.0)
+            setProbabilities(0.0, 0.0, 100.0)
+            setDeterminism(0.0)
+            setMtf(0.0)
+            setBestTimeframe("--")
+            setTradePlan(
+                "--",
+                "--",
+                "--",
+                "--",
+                "--"
+            )
+            setTiming(
+                "AGUARDAR",
+                "AGUARDANDO CANDLES REAIS"
+            )
+        }
+    }
+    return@thread
+}
 
                 val realtime =
                     RealtimeMarketAnalyzer.analyze(
