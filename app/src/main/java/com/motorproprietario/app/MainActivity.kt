@@ -211,7 +211,10 @@ private lateinit var dopmDashboardController:
             savedInstanceState
         )
 
-        DopmDashboardController(this).install()
+        dopmDashboardController =
+    DopmDashboardController(this)
+
+dopmDashboardController.install()
 
 connectRealtime()
 
