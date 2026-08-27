@@ -758,42 +758,61 @@ private lateinit var dopmDashboardController:
         sequenceStage =
             SequenceStage.S0
 
-        latestDetailedAnalysis =
+                latestDetailedAnalysis =
             "Aguardando dados reais..."
 
-        assetView.text =
-            selectedAsset
+        dopmDashboardController
+            .view()
+            ?.apply {
 
-        priceView.text =
-            "Preço: aguardando..."
+                setOnline(
+                    false
+                )
 
-        bestTimeframeView.text =
-            "Aguardando análise..."
+                setApi(
+                    "TWELVE DATA"
+                )
 
-        resultView.text =
-            "⚪ AGUARDAR"
+                setPrice(
+                    "--"
+                )
 
-        probabilityView.text =
-            "COMPRA ---%   VENDA ---%   NEUTRO ---%"
+                setDecision(
+                    "AGUARDAR",
+                    0.0
+                )
 
-        operationView.text =
-            "CARREGANDO $selectedAsset..."
+                setProbabilities(
+                    0.0,
+                    0.0,
+                    100.0
+                )
 
-        entryView.text =
-            "Entrada: --"
+                setDeterminism(
+                    0.0
+                )
 
-        stopView.text =
-            "Stop: --"
+                setMtf(
+                    0.0
+                )
 
-        targetsView.text =
-            "TP1: --\nTP2: --\nTP3: --\nR:R: --"
+                setBestTimeframe(
+                    "--"
+                )
 
-        timingView.text =
-            "Timing: --\nValidade: --"
+                setTradePlan(
+                    "--",
+                    "--",
+                    "--",
+                    "--",
+                    "--"
+                )
 
-        statusView.text =
-            "CONECTANDO..."
-    }
+                setTiming(
+                    "AGUARDAR",
+                    "--"
+                )
+            }
 
     private fun connectRealtime() {
 
