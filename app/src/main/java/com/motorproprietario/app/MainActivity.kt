@@ -813,6 +813,7 @@ private lateinit var dopmDashboardController:
                     "--"
                 )
             }
+    }
 
     private fun connectRealtime() {
 
