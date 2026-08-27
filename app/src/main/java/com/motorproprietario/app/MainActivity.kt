@@ -815,58 +815,61 @@ private lateinit var dopmDashboardController:
             }
     }
 
-    private fun connectRealtime() {
+    
+private fun connectRealtime() {
 
-        quoteClient.connect(
+    quoteClient.connect(
 
-            symbols =
-                listOf(
-                    selectedAsset
-                ),
+        symbols =
+            listOf(
+                selectedAsset
+            ),
 
-            onQuote = { quote ->
+        onQuote = { quote ->
 
-                lastQuote =
-                    quote
+            lastQuote =
+                quote
 
-                            runOnUiThread {
+            runOnUiThread {
 
-                    dopmDashboardController
-                        .view()
-                        ?.apply {
+                dopmDashboardController
+                    .view()
+                    ?.apply {
 
-                            setOnline(
-                                true
+                        setOnline(
+                            true
+                        )
+
+                        setApi(
+                            "TWELVE DATA"
+                        )
+
+                        setPrice(
+                            String.format(
+                                "%.5f",
+                                quote.price
                             )
+                        )
+                    }
+            }
+        },
 
-                            setApi(
-                                "TWELVE DATA"
-                            )
+        onError = { error ->
 
-                            setPrice(
-                                String.format(
-                                    "%.5f",
-                                    quote.price
-                                )
-                            )
-                        }
-                }
-            },
+            runOnUiThread {
 
-    onError = { error ->
-
-    runOnUiThread {
-
-        dopmDashboardController
-            .view()
-            ?.setOnline(
-                false
-            )
-    }
-}
+                dopmDashboardController
+                    .view()
+                    ?.setOnline(
+                        false
+                    )
+            }
+        }
     )
+}
 
-    private fun analyzeMarket() {
+private fun analyzeMarket() {
+    
 
         if (analyzing) {
             return
