@@ -29,7 +29,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var targetsView: TextView
     private lateinit var timingView: TextView
     private lateinit var analysisButton: Button
-
+    
+private lateinit var dopmDashboardController:
+    DopmDashboardController
+    
     private lateinit var assetSpinner: Spinner
     private lateinit var timeframeSpinner: Spinner
     private lateinit var horizonSpinner: Spinner
@@ -208,13 +211,13 @@ class MainActivity : AppCompatActivity() {
             savedInstanceState
         )
 
-        buildInterface()
+        DopmDashboardController(this).install()
 
-        connectRealtime()
+connectRealtime()
 
-        handler.post(
-            refreshTask
-        )
+handler.post(
+    refreshTask
+)
     }
 
     private fun buildInterface() {
