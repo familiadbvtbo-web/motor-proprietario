@@ -92,14 +92,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-    private fun dp(
-        value: Int
-    ): Int =
-        (
-            value *
-                resources.displayMetrics.density
-        ).toInt()
-
     override fun onCreate(
         savedInstanceState: Bundle?
     ) {
@@ -109,10 +101,10 @@ class MainActivity : AppCompatActivity() {
         )
 
         /*
-         * A nova interface DOPM é instalada aqui.
+         * NOVA INTERFACE DOPM
          *
-         * Não utilizamos mais a interface antiga
-         * criada diretamente nesta Activity.
+         * A interface antiga não é mais
+         * construída dentro da Activity.
          */
         dopmDashboardController =
             DopmDashboardController(this)
@@ -338,6 +330,34 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    /*
+     * ============================================================
+     * ANÁLISE PRINCIPAL
+     * ============================================================
+     *
+     * Fluxo real:
+     *
+     * TWELVE DATA
+     *      ↓
+     * Candles
+     *      ↓
+     * RealtimeMarketAnalyzer
+     *      ↓
+     * ┌──────────────────────┐
+     * │ ProbabilityEngine    │
+     * │ DeterministicEngine  │
+     * └──────────────────────┘
+     *      ↓
+     * Combinação final
+     *      ↓
+     * Melhor timeframe
+     *      ↓
+     * EntryPlanEngine
+     *      ↓
+     * SequenceEngine
+     *      ↓
+     * Nova interface DOPM
+     */
     private fun analyzeMarket() {
 
         if (
@@ -447,7 +467,9 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 /*
-                 * ANALISADOR DE MERCADO EM TEMPO REAL
+                 * ==================================================
+                 * ANÁLISE DE MERCADO
+                 * ==================================================
                  */
                 val realtime =
                     RealtimeMarketAnalyzer.analyze(
@@ -474,6 +496,11 @@ class MainActivity : AppCompatActivity() {
                             now
                     )
 
+                /*
+                 * ==================================================
+                 * TIMEFRAME SELECIONADO
+                 * ==================================================
+                 */
                 val selectedMetrics =
                     realtime.metrics[
                         selectedTimeframe
@@ -496,7 +523,9 @@ class MainActivity : AppCompatActivity() {
                         .toList()
 
                 /*
+                 * ==================================================
                  * MOTOR DETERMINÍSTICO
+                 * ==================================================
                  */
                 val deterministic =
                     DeterministicEngine.calculate(
@@ -521,7 +550,9 @@ class MainActivity : AppCompatActivity() {
                     )
 
                 /*
+                 * ==================================================
                  * MOTOR PROBABILÍSTICO
+                 * ==================================================
                  */
                 val probability =
                     ProbabilityEngine.calculate(
@@ -562,13 +593,9 @@ class MainActivity : AppCompatActivity() {
                     )
 
                 /*
+                 * ==================================================
                  * DECISÃO FINAL
-                 *
-                 * Combina:
-                 * - probabilidade
-                 * - determinismo
-                 * - risco de falso sinal
-                 * - confluência MTF
+                 * ==================================================
                  */
                 val finalProbabilities =
                     combineFinalProbabilities(
@@ -583,7 +610,9 @@ class MainActivity : AppCompatActivity() {
                     )
 
                 /*
-                 * ENCONTRA O MELHOR TIMEFRAME
+                 * ==================================================
+                 * MELHOR TIMEFRAME
+                 * ==================================================
                  */
                 val bestTimeframe =
                     findBestTimeframe(
@@ -598,7 +627,9 @@ class MainActivity : AppCompatActivity() {
                         ?: selectedMetrics
 
                 /*
+                 * ==================================================
                  * DETERMINISMO DO MELHOR TIMEFRAME
+                 * ==================================================
                  */
                 val bestDeterministic =
                     DeterministicEngine.calculate(
@@ -632,7 +663,9 @@ class MainActivity : AppCompatActivity() {
                     )
 
                 /*
+                 * ==================================================
                  * PROBABILIDADE DO MELHOR TIMEFRAME
+                 * ==================================================
                  */
                 val bestProbability =
                     ProbabilityEngine.calculate(
@@ -685,7 +718,9 @@ class MainActivity : AppCompatActivity() {
                     )
 
                 /*
-                 * DECISÃO FINAL DO MOTOR
+                 * ==================================================
+                 * DIREÇÃO FINAL
+                 * ==================================================
                  */
                 val bestDirection =
                     finalDirection(
@@ -693,7 +728,9 @@ class MainActivity : AppCompatActivity() {
                     )
 
                 /*
+                 * ==================================================
                  * PLANO OPERACIONAL
+                 * ==================================================
                  */
                 val entryPlan =
                     EntryPlanEngine.calculate(
@@ -730,7 +767,9 @@ class MainActivity : AppCompatActivity() {
                     )
 
                 /*
-                 * SEQUÊNCIA DO MOTOR
+                 * ==================================================
+                 * SEQUÊNCIA
+                 * ==================================================
                  */
                 val sequence =
                     SequenceEngine.advance(
@@ -782,7 +821,9 @@ class MainActivity : AppCompatActivity() {
                     sequence.stage
 
                 /*
+                 * ==================================================
                  * ANÁLISE DETALHADA
+                 * ==================================================
                  */
                 val detailed =
                     buildDetailedAnalysis(
@@ -850,10 +891,8 @@ class MainActivity : AppCompatActivity() {
             ) {
 
                 /*
-                 * IMPORTANTE:
-                 *
-                 * Um erro de análise não pode mais
-                 * derrubar a Activity.
+                 * Um erro de análise não deve
+                 * acessar os TextViews antigos.
                  */
                 runOnUiThread {
 
@@ -919,6 +958,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /*
+     * ============================================================
+     * ATUALIZAÇÃO DA NOVA INTERFACE
+     * ============================================================
+     */
     private fun updateMainScreen(
 
         realtime:
@@ -949,6 +993,10 @@ class MainActivity : AppCompatActivity() {
         val neutral =
             finalProbabilities.third
 
+        /*
+         * TOTAL é a probabilidade correspondente
+         * à direção final.
+         */
         val total =
             when (
                 direction
@@ -965,20 +1013,24 @@ class MainActivity : AppCompatActivity() {
             }
 
         /*
-         * A partir daqui SOMENTE a nova interface
-         * é atualizada.
-         *
-         * Não existem mais referências aos
-         * TextViews da interface antiga.
+         * ==================================================
+         * CONEXÃO
+         * ==================================================
          */
-
         dopmDashboardController.updateConnection(
 
-            online = true,
+            online =
+                true,
 
-            api = "TWELVE DATA"
+            api =
+                "TWELVE DATA"
         )
 
+        /*
+         * ==================================================
+         * ATIVO / PREÇO
+         * ==================================================
+         */
         dopmDashboardController.updateMarket(
 
             price =
@@ -988,6 +1040,11 @@ class MainActivity : AppCompatActivity() {
                 selectedAsset
         )
 
+        /*
+         * ==================================================
+         * DECISÃO
+         * ==================================================
+         */
         dopmDashboardController.updateDecision(
 
             direction =
@@ -1004,8 +1061,9 @@ class MainActivity : AppCompatActivity() {
         )
 
         /*
-         * PROBABILIDADE:
-         * resultado vindo do motor probabilístico
+         * ==================================================
+         * PROBABILIDADE REAL
+         * ==================================================
          */
         dopmDashboardController
             .view()
@@ -1017,8 +1075,9 @@ class MainActivity : AppCompatActivity() {
             )
 
         /*
-         * DETERMINISMO:
-         * resultado do motor determinístico
+         * ==================================================
+         * DETERMINISMO REAL
+         * ==================================================
          */
         dopmDashboardController
             .view()
@@ -1027,7 +1086,9 @@ class MainActivity : AppCompatActivity() {
             )
 
         /*
-         * CONFLUÊNCIA MTF
+         * ==================================================
+         * CONFLUÊNCIA MTF REAL
+         * ==================================================
          */
         dopmDashboardController
             .view()
@@ -1035,6 +1096,9 @@ class MainActivity : AppCompatActivity() {
                 realtime.mtfConfluence
             )
 
+        /*
+         * Mantém também o fluxo do Controller.
+         */
         dopmDashboardController.updateMathematics(
 
             probability =
@@ -1050,13 +1114,20 @@ class MainActivity : AppCompatActivity() {
                 realtime.mtfConfluence
         )
 
+        /*
+         * ==================================================
+         * MELHOR TIMEFRAME
+         * ==================================================
+         */
         dopmDashboardController.updateBestTimeframe(
 
             bestTimeframe
         )
 
         /*
+         * ==================================================
          * PLANO OPERACIONAL
+         * ==================================================
          */
         if (
             direction ==
@@ -1064,33 +1135,40 @@ class MainActivity : AppCompatActivity() {
             !entryPlan.valid
         ) {
 
+            /*
+             * Não envia números fictícios.
+             *
+             * A interface recebe "--".
+             */
             dopmDashboardController
-                .updateTradePlan(
+                .view()
+                ?.setTradePlan(
 
                     entry =
-                        Double.NaN,
+                        "--",
 
                     stop =
-                        Double.NaN,
+                        "--",
 
                     tp1 =
-                        Double.NaN,
+                        "--",
 
                     tp2 =
-                        Double.NaN,
+                        "--",
 
                     tp3 =
-                        Double.NaN
+                        "--"
                 )
 
-            dopmDashboardController.updateTiming(
+            dopmDashboardController
+                .updateTiming(
 
-                timing =
-                    "AGUARDAR",
+                    timing =
+                        "AGUARDAR",
 
-                validity =
-                    "--"
-            )
+                    validity =
+                        "--"
+                )
 
         } else {
 
@@ -1125,15 +1203,20 @@ class MainActivity : AppCompatActivity() {
         }
 
         /*
-         * Mantém o valor calculado disponível para
-         * o fluxo da Activity sem criar qualquer
-         * número artificial.
+         * Evita variável não utilizada.
+         *
+         * O valor continua sendo calculado pelo motor.
          */
         @Suppress("UNUSED_VARIABLE")
         val finalTotal =
             total
     }
 
+    /*
+     * ============================================================
+     * CANDLES REAIS
+     * ============================================================
+     */
     private fun updateCandles(
         now: Long
     ) {
@@ -1258,6 +1341,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /*
+     * ============================================================
+     * COMBINAÇÃO PROBABILÍSTICA + DETERMINÍSTICA
+     * ============================================================
+     */
     private fun combineFinalProbabilities(
 
         probability:
@@ -1385,6 +1473,11 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    /*
+     * ============================================================
+     * DIREÇÃO FINAL
+     * ============================================================
+     */
     private fun finalDirection(
         probabilities:
             Triple<Double, Double, Double>
@@ -1422,6 +1515,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /*
+     * ============================================================
+     * MELHOR TIMEFRAME
+     * ============================================================
+     */
     private fun findBestTimeframe(
 
         realtime:
@@ -1593,6 +1691,11 @@ class MainActivity : AppCompatActivity() {
         return best
     }
 
+    /*
+     * ============================================================
+     * RANKING DOS TIMEFRAMES
+     * ============================================================
+     */
     private fun timeframeRank(
         timeframe: String
     ): Int =
@@ -1625,6 +1728,11 @@ class MainActivity : AppCompatActivity() {
                 0
         }
 
+    /*
+     * ============================================================
+     * EVIDÊNCIA DE FIBONACCI
+     * ============================================================
+     */
     private fun fibonacciEvidence(
 
         candles:
@@ -1748,6 +1856,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /*
+     * ============================================================
+     * ANÁLISE DETALHADA
+     * ============================================================
+     */
     private fun buildDetailedAnalysis(
 
         realtime:
@@ -2471,7 +2584,8 @@ class MainActivity : AppCompatActivity() {
                 "CANDLES: ${
                     candles.values.sumOf {
                         it.size
-                    }\n"
+                    }
+                }\n"
             )
 
             append(
@@ -2488,6 +2602,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /*
+     * ============================================================
+     * DIREÇÃO DOS INDICADORES
+     * ============================================================
+     */
     private fun metricDirection(
         metrics:
             QuantMetrics
@@ -2567,6 +2686,11 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /*
+     * ============================================================
+     * EXPIRAÇÃO
+     * ============================================================
+     */
     private fun formatExpiry(
         timestamp: Long
     ): String {
@@ -2588,45 +2712,6 @@ class MainActivity : AppCompatActivity() {
                 timestamp
             )
         )
-    }
-
-    private fun showDetailedAnalysis() {
-
-        val content =
-            android.widget.TextView(this).apply {
-
-                text =
-                    latestDetailedAnalysis
-
-                textSize =
-                    14f
-
-                setTextColor(
-                    Color.WHITE
-                )
-
-                setPadding(
-                    dp(16),
-                    dp(8),
-                    dp(16),
-                    dp(20)
-                )
-            }
-
-        AlertDialog.Builder(
-            this
-        )
-            .setTitle(
-                "ANÁLISE DETALHADA"
-            )
-            .setView(
-                content
-            )
-            .setPositiveButton(
-                "FECHAR",
-                null
-            )
-            .show()
     }
 
     override fun onDestroy() {
