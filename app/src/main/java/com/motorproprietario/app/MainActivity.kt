@@ -864,7 +864,7 @@ private lateinit var dopmDashboardController:
             )
     }
 }
-    }
+    )
 
     private fun analyzeMarket() {
 
