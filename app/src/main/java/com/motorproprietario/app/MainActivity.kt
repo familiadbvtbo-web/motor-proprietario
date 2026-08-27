@@ -882,7 +882,10 @@ class MainActivity : AppCompatActivity() {
                             entryPlan,
 
                         deterministic =
-                            bestDeterministic
+                            bestDeterministic,
+
+                        metrics =
+                            bestMetrics
                     )
                 }
 
@@ -981,7 +984,10 @@ class MainActivity : AppCompatActivity() {
             EntryPlanResult,
 
         deterministic:
-            DeterministicResult
+            DeterministicResult,
+
+        metrics:
+            QuantMetrics
     ) {
 
         val buy =
@@ -1112,6 +1118,17 @@ class MainActivity : AppCompatActivity() {
 
             mtf =
                 realtime.mtfConfluence
+        )
+
+        /*
+         * ==================================================
+         * INDICADORES EM TEMPO REAL
+         * ==================================================
+         */
+        dopmDashboardController.updateIndicators(
+            metrics = metrics,
+            fsi = realtime.fsi,
+            mtf = realtime.mtfConfluence
         )
 
         /*
