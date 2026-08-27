@@ -26,6 +26,10 @@ import java.util.Locale
  */
 class DopmDashboardView(context: Context) : FrameLayout(context) {
 
+    // =========================================================
+    // CORES
+    // =========================================================
+
     private val bg = Color.rgb(2, 10, 22)
     private val panel = Color.rgb(4, 21, 40)
     private val dark = Color.rgb(3, 17, 32)
@@ -40,15 +44,27 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     private val gray = Color.rgb(165, 185, 215)
     private val neutral = Color.rgb(170, 195, 230)
 
+    // =========================================================
+    // ROOT
+    // =========================================================
+
     private val scroll = ScrollView(context)
     private val content = LinearLayout(context)
     private val bottomNavigation = LinearLayout(context)
+
+    // =========================================================
+    // HEADER
+    // =========================================================
 
     private val onlineView = TextView(context)
     private val clockView = TextView(context)
     private val dateView = TextView(context)
     private val apiView = TextView(context)
     private val priceView = TextView(context)
+
+    // =========================================================
+    // SELETORES
+    // =========================================================
 
     private val assetSpinner = Spinner(context)
     private val timeframeSpinner = Spinner(context)
@@ -60,6 +76,10 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     private var onTimeframeChanged: ((String) -> Unit)? = null
     private var suppressSelection = true
 
+    // =========================================================
+    // DECISÃO
+    // =========================================================
+
     private val decisionView = TextView(context)
     private val totalView = TextView(context)
     private val buyView = TextView(context)
@@ -68,54 +88,94 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     private val decisionIcon = TextView(context)
     private val decisionCircle = DecisionCircle(context)
 
+    // =========================================================
+    // PLANO
+    // =========================================================
+
     private val entryView = TextView(context)
     private val stopView = TextView(context)
     private val targetsView = TextView(context)
     private val timingView = TextView(context)
     private val validityView = TextView(context)
 
+    // =========================================================
+    // CONFIANÇA
+    // =========================================================
+
     private val probabilityView = TextView(context)
     private val deterministicView = TextView(context)
     private val mtfView = TextView(context)
 
-    private val indicatorViews = LinkedHashMap<String, IndicatorBar>()
+    // =========================================================
+    // INDICADORES
+    // =========================================================
 
-    private val clockHandler = Handler(Looper.getMainLooper())
+    private val indicatorViews =
+        LinkedHashMap<String, IndicatorBar>()
 
-    private val clockRunnable = object : Runnable {
-        override fun run() {
-            val now = Date()
+    // =========================================================
+    // RELÓGIO
+    // =========================================================
 
-            clockView.text =
-                "◷ " + SimpleDateFormat(
-                    "HH:mm:ss",
-                    Locale.getDefault()
-                ).format(now)
+    private val clockHandler =
+        Handler(Looper.getMainLooper())
 
-            dateView.text =
-                "▣ " + SimpleDateFormat(
-                    "dd/MM/yyyy",
-                    Locale.getDefault()
-                ).format(now)
+    private val clockRunnable =
+        object : Runnable {
 
-            clockHandler.postDelayed(this, 1000L)
+            override fun run() {
+
+                val now = Date()
+
+                clockView.text =
+                    "◷ " +
+                        SimpleDateFormat(
+                            "HH:mm:ss",
+                            Locale.getDefault()
+                        ).format(now)
+
+                dateView.text =
+                    "▣ " +
+                        SimpleDateFormat(
+                            "dd/MM/yyyy",
+                            Locale.getDefault()
+                        ).format(now)
+
+                clockHandler.postDelayed(
+                    this,
+                    1000L
+                )
+            }
         }
-    }
+
+    // =========================================================
+    // INIT
+    // =========================================================
 
     init {
+
         setBackgroundColor(bg)
+
         build()
 
-        postDelayed({
-            suppressSelection = false
-        }, 500L)
+        postDelayed(
+            {
+                suppressSelection = false
+            },
+            500L
+        )
     }
 
+    // =========================================================
+    // UTILITÁRIOS
+    // =========================================================
+
     private fun dp(value: Int): Int {
+
         return (
             value *
                 resources.displayMetrics.density
-        ).toInt()
+            ).toInt()
     }
 
     private fun txt(
@@ -124,7 +184,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         color: Int = white,
         bold: Boolean = false
     ): TextView {
+
         return TextView(context).apply {
+
             text = value
             textSize = size
             setTextColor(color)
@@ -144,12 +206,16 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         stroke: Int = border,
         radius: Int = 14
     ): GradientDrawable {
+
         return GradientDrawable().apply {
+
             setColor(fill)
+
             setStroke(
                 dp(1),
                 stroke
             )
+
             cornerRadius =
                 dp(radius).toFloat()
         }
@@ -158,7 +224,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     private fun card(
         stroke: Int = border
     ): LinearLayout {
+
         return LinearLayout(context).apply {
+
             orientation =
                 LinearLayout.VERTICAL
 
@@ -181,6 +249,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     private fun gap(
         height: Int = 5
     ) {
+
         content.addView(
             View(context),
             LinearLayout.LayoutParams(
@@ -189,6 +258,10 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             )
         )
     }
+
+    // =========================================================
+    // BUILD
+    // =========================================================
 
     private fun build() {
 
@@ -209,8 +282,8 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         scroll.addView(
             content,
             ScrollView.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.WRAP_CONTENT
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
             )
         )
 
@@ -235,10 +308,15 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         startClock()
     }
 
+    // =========================================================
+    // HEADER
+    // =========================================================
+
     private fun buildHeader() {
 
         val row =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.HORIZONTAL
 
@@ -248,6 +326,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
         val brand =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
             }
@@ -289,6 +368,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
         val status =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
 
@@ -297,17 +377,21 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             }
 
         onlineView.apply {
+
             text = "● ONLINE"
             textSize = 12f
             setTextColor(green)
+
             setTypeface(
                 null,
                 Typeface.BOLD
             )
+
             gravity = Gravity.END
         }
 
         clockView.apply {
+
             text = "◷ --:--:--"
             textSize = 10f
             setTextColor(white)
@@ -315,6 +399,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         }
 
         dateView.apply {
+
             text = "▣ --/--/----"
             textSize = 10f
             setTextColor(white)
@@ -322,18 +407,22 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         }
 
         apiView.apply {
+
             text =
                 "API DE DADOS • TWELVE DATA"
 
             textSize = 9f
             setTextColor(blue)
             gravity = Gravity.END
+
             maxLines = 1
+
             ellipsize =
                 TextUtils.TruncateAt.END
         }
 
         priceView.apply {
+
             text = "Preço: --"
             textSize = 9f
             setTextColor(gray)
@@ -359,10 +448,15 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         gap(6)
     }
 
+    // =========================================================
+    // SELETORES
+    // =========================================================
+
     private fun buildSelectors() {
 
         val row =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.HORIZONTAL
             }
@@ -380,6 +474,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
         val marketRow =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.HORIZONTAL
             }
@@ -438,7 +533,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                     dp(38),
                     1f
                 ).apply {
-                    marginEnd = dp(3)
+
+                    marginEnd =
+                        dp(3)
                 }
             )
         }
@@ -452,7 +549,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(78),
                 1.5f
             ).apply {
-                marginEnd = dp(5)
+
+                marginEnd =
+                    dp(5)
             }
         )
 
@@ -494,6 +593,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 ) {
 
                     if (!suppressSelection) {
+
                         onAssetChanged?.invoke(
                             assets[position]
                         )
@@ -515,7 +615,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(78),
                 1.05f
             ).apply {
-                marginEnd = dp(5)
+
+                marginEnd =
+                    dp(5)
             }
         )
 
@@ -551,6 +653,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 ) {
 
                     if (!suppressSelection) {
+
                         onTimeframeChanged?.invoke(
                             timeframes[position]
                         )
@@ -589,6 +692,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
         val bestRow =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.HORIZONTAL
 
@@ -611,6 +715,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
         val bestText =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
             }
@@ -625,9 +730,11 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         )
 
         bestTimeframeView.apply {
+
             text = "--"
             textSize = 22f
             setTextColor(green)
+
             setTypeface(
                 null,
                 Typeface.BOLD
@@ -743,6 +850,10 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         }
     }
 
+    // =========================================================
+    // DECISÃO
+    // =========================================================
+
     private fun buildDecision() {
 
         val box =
@@ -756,6 +867,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
         val row =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.HORIZONTAL
 
@@ -764,10 +876,12 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             }
 
         decisionIcon.apply {
+
             text = "→"
             textSize = 30f
             gravity = Gravity.CENTER
             setTextColor(white)
+
             setTypeface(
                 null,
                 Typeface.BOLD
@@ -795,12 +909,15 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(60),
                 dp(76)
             ).apply {
-                marginEnd = dp(6)
+
+                marginEnd =
+                    dp(6)
             }
         )
 
         val decision =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
 
@@ -818,16 +935,21 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         )
 
         decisionView.apply {
+
             text = "AGUARDAR"
             textSize = 23f
             setTextColor(white)
+
             setTypeface(
                 null,
                 Typeface.BOLD
             )
+
             maxLines = 1
+
             ellipsize =
                 TextUtils.TruncateAt.END
+
             includeFontPadding = false
         }
 
@@ -836,13 +958,16 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         )
 
         totalView.apply {
+
             text = "TOTAL: ---%"
             textSize = 14f
             setTextColor(white)
+
             setTypeface(
                 null,
                 Typeface.BOLD
             )
+
             maxLines = 1
         }
 
@@ -857,7 +982,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(82),
                 1f
             ).apply {
-                marginEnd = dp(4)
+
+                marginEnd =
+                    dp(4)
             }
         )
 
@@ -867,12 +994,15 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(92),
                 dp(92)
             ).apply {
-                marginEnd = dp(4)
+
+                marginEnd =
+                    dp(4)
             }
         )
 
         val breakdown =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
 
@@ -881,7 +1011,10 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             }
 
         buyView.apply {
-            text = "● COMPRA   ---%"
+
+            text =
+                "● COMPRA   ---%"
+
             textSize = 11f
             setTextColor(green)
             maxLines = 1
@@ -889,7 +1022,10 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         }
 
         sellView.apply {
-            text = "● VENDA    ---%"
+
+            text =
+                "● VENDA    ---%"
+
             textSize = 11f
             setTextColor(red)
             maxLines = 1
@@ -897,7 +1033,10 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         }
 
         neutralView.apply {
-            text = "● NEUTRO   ---%"
+
+            text =
+                "● NEUTRO   ---%"
+
             textSize = 11f
             setTextColor(neutral)
             maxLines = 1
@@ -930,6 +1069,10 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         gap()
     }
 
+    // =========================================================
+    // INFORMAÇÃO
+    // =========================================================
+
     private fun information(
         icon: String,
         title: String,
@@ -938,10 +1081,12 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         color: Int
     ): LinearLayout {
 
-        val box = card()
+        val box =
+            card()
 
         val row =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.HORIZONTAL
 
@@ -964,6 +1109,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
         val column =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
 
@@ -981,7 +1127,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         )
 
         valueView.apply {
+
             text = initial
+
             textSize =
                 if (title == "TAKE PROFIT") {
                     14f
@@ -990,10 +1138,12 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 }
 
             setTextColor(white)
+
             setTypeface(
                 null,
                 Typeface.BOLD
             )
+
             maxLines = 3
         }
 
@@ -1013,10 +1163,15 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         return box
     }
 
+    // =========================================================
+    // PLANO
+    // =========================================================
+
     private fun buildTradePlan() {
 
         val row =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.HORIZONTAL
             }
@@ -1034,7 +1189,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(98),
                 1f
             ).apply {
-                marginEnd = dp(5)
+
+                marginEnd =
+                    dp(5)
             }
         )
 
@@ -1051,7 +1208,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(98),
                 1f
             ).apply {
-                marginEnd = dp(5)
+
+                marginEnd =
+                    dp(5)
             }
         )
 
@@ -1071,13 +1230,19 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         )
 
         content.addView(row)
+
         gap()
     }
+
+    // =========================================================
+    // TIMING
+    // =========================================================
 
     private fun buildTiming() {
 
         val row =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.HORIZONTAL
             }
@@ -1095,7 +1260,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(82),
                 1f
             ).apply {
-                marginEnd = dp(5)
+
+                marginEnd =
+                    dp(5)
             }
         )
 
@@ -1115,15 +1282,22 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         )
 
         content.addView(row)
+
         gap()
     }
 
+    // =========================================================
+    // CONFIANÇA
+    // =========================================================
+
     private fun buildConfidence() {
 
-        val box = card()
+        val box =
+            card()
 
         val row =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.HORIZONTAL
             }
@@ -1139,7 +1313,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 1f
             ).apply {
-                marginEnd = dp(5)
+
+                marginEnd =
+                    dp(5)
             }
         )
 
@@ -1154,7 +1330,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 1f
             ).apply {
-                marginEnd = dp(5)
+
+                marginEnd =
+                    dp(5)
             }
         )
 
@@ -1208,9 +1386,11 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             )
 
             value.apply {
+
                 text = "--"
                 textSize = 19f
                 setTextColor(color)
+
                 setTypeface(
                     null,
                     Typeface.BOLD
@@ -1221,12 +1401,18 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         }
     }
 
+    // =========================================================
+    // INDICADORES
+    // =========================================================
+
     private fun buildIndicators() {
 
-        val box = card()
+        val box =
+            card()
 
         val row =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.HORIZONTAL
             }
@@ -1262,8 +1448,10 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     1f
                 ).apply {
+
                     if (index < 5) {
-                        marginEnd = dp(3)
+                        marginEnd =
+                            dp(3)
                     }
                 }
             )
@@ -1282,12 +1470,18 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         gap()
     }
 
+    // =========================================================
+    // ANÁLISE DETALHADA
+    // =========================================================
+
     private fun buildDetailed() {
 
-        val box = card()
+        val box =
+            card()
 
         val header =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.HORIZONTAL
 
@@ -1310,6 +1504,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
         val title =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
             }
@@ -1346,6 +1541,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 34f,
                 gray
             ).apply {
+
                 gravity =
                     Gravity.CENTER
 
@@ -1381,6 +1577,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
         val grid =
             LinearLayout(context).apply {
+
                 orientation =
                     LinearLayout.VERTICAL
             }
@@ -1391,6 +1588,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
             val line =
                 LinearLayout(context).apply {
+
                     orientation =
                         LinearLayout.HORIZONTAL
                 }
@@ -1435,14 +1633,17 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                         dp(62),
                         1f
                     ).apply {
+
                         if (columnIndex < 4) {
-                            marginEnd = dp(4)
+                            marginEnd =
+                                dp(4)
                         }
                     }
                 )
             }
 
             while (line.childCount < 5) {
+
                 line.addView(
                     View(context),
                     LinearLayout.LayoutParams(
@@ -1456,6 +1657,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             grid.addView(line)
 
             if (rowIndex < 2) {
+
                 grid.addView(
                     View(context),
                     LinearLayout.LayoutParams(
@@ -1478,6 +1680,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     ): String {
 
         return when (index) {
+
             0 -> "☷"
             1 -> "◴"
             2 -> "▱"
@@ -1504,19 +1707,18 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                     "MOTOR PROPRIETÁRIO\n\n"
                 )
 
-                append(
-                    "DECISÃO: "
-                )
-                append(
-                    decisionView.text
-                )
+                append("DECISÃO: ")
+                append(decisionView.text)
 
                 append("\n")
                 append(totalView.text)
+
                 append("\n")
                 append(buyView.text)
+
                 append("\n")
                 append(sellView.text)
+
                 append("\n")
                 append(neutralView.text)
 
@@ -1585,6 +1787,10 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             .show()
     }
 
+    // =========================================================
+    // NAVEGAÇÃO
+    // =========================================================
+
     private fun buildBottomNavigation() {
 
         bottomNavigation.orientation =
@@ -1649,6 +1855,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                 dp(72),
                 Gravity.BOTTOM
             ).apply {
+
                 leftMargin = dp(4)
                 rightMargin = dp(4)
                 bottomMargin = dp(2)
@@ -1656,7 +1863,12 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
         )
     }
 
+    // =========================================================
+    // RELÓGIO
+    // =========================================================
+
     private fun startClock() {
+
         clockHandler.removeCallbacks(
             clockRunnable
         )
@@ -1667,17 +1879,24 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     }
 
     override fun onDetachedFromWindow() {
+
         clockHandler.removeCallbacks(
             clockRunnable
         )
+
         super.onDetachedFromWindow()
     }
+
+    // =========================================================
+    // LISTENERS
+    // =========================================================
 
     fun setSelectionListeners(
         marketChanged: (String) -> Unit,
         assetChanged: (String) -> Unit,
         timeframeChanged: (String) -> Unit
     ) {
+
         onMarketChanged =
             marketChanged
 
@@ -1688,9 +1907,14 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             timeframeChanged
     }
 
+    // =========================================================
+    // CONNECTION
+    // =========================================================
+
     fun setOnline(
         online: Boolean
     ) {
+
         onlineView.text =
             if (online) {
                 "● ONLINE"
@@ -1710,6 +1934,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     fun setApi(
         api: String
     ) {
+
         apiView.text =
             "API DE DADOS • $api"
     }
@@ -1717,9 +1942,14 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     fun setPrice(
         price: String
     ) {
+
         priceView.text =
             "Preço: $price"
     }
+
+    // =========================================================
+    // DECISÃO
+    // =========================================================
 
     fun setDecision(
         direction: String,
@@ -1804,9 +2034,14 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             "● NEUTRO   ${format(neutral)}%"
     }
 
+    // =========================================================
+    // MATEMÁTICA RECEBIDA DO CONTROLLER
+    // =========================================================
+
     fun setProbability(
         value: Double
     ) {
+
         probabilityView.text =
             "${format(value)}%"
     }
@@ -1814,6 +2049,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     fun setDeterminism(
         value: Double
     ) {
+
         deterministicView.text =
             "${format(value)}%"
     }
@@ -1821,6 +2057,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     fun setMtf(
         value: Double
     ) {
+
         mtfView.text =
             "${format(value)}%"
     }
@@ -1828,9 +2065,14 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
     fun setBestTimeframe(
         value: String
     ) {
+
         bestTimeframeView.text =
             value
     }
+
+    // =========================================================
+    // PLANO
+    // =========================================================
 
     fun setTradePlan(
         entry: String,
@@ -1862,10 +2104,15 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             validity
     }
 
+    // =========================================================
+    // INDICADORES
+    // =========================================================
+
     fun setIndicator(
         name: String,
         value: Double
     ) {
+
         indicatorViews[name]?.setValue(
             value
         )
@@ -1881,6 +2128,10 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             value
         )
     }
+
+    // =========================================================
+    // INDICATOR BAR
+    // =========================================================
 
     private class IndicatorBar(
         context: Context,
@@ -1935,12 +2186,16 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
             addView(
                 barView,
-                LayoutParams(
-                    MATCH_PARENT,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
                     dp(7)
                 ).apply {
-                    topMargin = dp(4)
-                    bottomMargin = dp(3)
+
+                    topMargin =
+                        dp(4)
+
+                    bottomMargin =
+                        dp(3)
                 }
             )
 
@@ -1978,7 +2233,9 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
 
             barView.background =
                 GradientDrawable().apply {
+
                     setColor(color)
+
                     cornerRadius =
                         dp(4).toFloat()
                 }
@@ -1996,9 +2253,13 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             return (
                 value *
                     resources.displayMetrics.density
-            ).toInt()
+                ).toInt()
         }
     }
+
+    // =========================================================
+    // CÍRCULO DE DECISÃO
+    // =========================================================
 
     private class DecisionCircle(
         context: Context
@@ -2087,8 +2348,8 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
                         (
                             value /
                                 100f
-                        )
-                ).toFloat(),
+                            )
+                    ).toFloat(),
                 false,
                 paint
             )
@@ -2141,7 +2402,7 @@ class DopmDashboardView(context: Context) : FrameLayout(context) {
             return (
                 value *
                     resources.displayMetrics.density
-            ).toInt()
+                ).toInt()
         }
     }
 }
