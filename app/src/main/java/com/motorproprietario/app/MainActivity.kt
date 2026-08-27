@@ -204,17 +204,102 @@ private lateinit var dopmDashboardController:
     }
 
     override fun onCreate(
-        savedInstanceState: Bundle?
-    ) {
+    savedInstanceState: Bundle?
+) {
 
-        super.onCreate(
-            savedInstanceState
-        )
+    super.onCreate(
+        savedInstanceState
+    )
 
-        dopmDashboardController =
-    DopmDashboardController(this)
+    dopmDashboardController =
+        DopmDashboardController(this)
 
-dopmDashboardController.install()
+    dopmDashboardController.install()
+
+    dopmDashboardController.setSelectionListeners(
+
+        marketChanged = { market ->
+
+            when (market) {
+
+                "FOREX" -> {
+
+                    selectedAsset =
+                        "EUR/USD"
+
+                    selectedTimeframe =
+                        "M15"
+
+                    resetForNewAsset()
+
+                    connectRealtime()
+                }
+
+                "CRIPTO" -> {
+
+                    selectedAsset =
+                        "BTC/USD"
+
+                    selectedTimeframe =
+                        "M15"
+
+                    resetForNewAsset()
+
+                    connectRealtime()
+                }
+
+                "B3" -> {
+
+                    selectedAsset =
+                        "IBOV"
+
+                    selectedTimeframe =
+                        "M15"
+
+                    resetForNewAsset()
+
+                    connectRealtime()
+                }
+            }
+        },
+
+        assetChanged = { asset ->
+
+            if (
+                asset.isNotBlank() &&
+                asset != selectedAsset
+            ) {
+
+                selectedAsset =
+                    asset
+
+                resetForNewAsset()
+
+                connectRealtime()
+            }
+        },
+
+        timeframeChanged = { timeframe ->
+
+            if (
+                timeframe.isNotBlank() &&
+                timeframe != selectedTimeframe
+            ) {
+
+                selectedTimeframe =
+                    timeframe
+
+                analyzeMarket()
+            }
+        }
+    )
+
+    connectRealtime()
+
+    handler.post(
+        refreshTask
+    )
+}
 
 connectRealtime()
 
