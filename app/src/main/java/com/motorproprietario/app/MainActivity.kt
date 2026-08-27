@@ -1242,6 +1242,66 @@ handler.post(
                     neutral
             }
 
+                    dopmDashboardController.updateConnection(
+            online = true,
+            api = "TWELVE DATA"
+        )
+
+        dopmDashboardController.updateMarket(
+            price = realtime.market.price,
+            asset = selectedAsset
+        )
+
+        dopmDashboardController.updateDecision(
+            direction = direction,
+            buy = buy,
+            sell = sell,
+            neutral = neutral
+        )
+
+        dopmDashboardController.updateMathematics(
+            probability =
+                maxOf(buy, sell),
+            deterministic =
+                realtime.metrics[
+                    bestTimeframe
+                ]?.let {
+                    DeterministicEngine.calculate(
+                        DeterministicInput(
+                            metrics = it,
+                            mtfConfluence =
+                                realtime.mtfConfluence,
+                            falseSignalRisk =
+                                realtime.fsi,
+                            currentPrice =
+                                realtime.market.price,
+                            higherTimeframes =
+                                emptyList()
+                        )
+                    ).confidence
+                } ?: 0.0,
+            mtf =
+                realtime.mtfConfluence
+        )
+
+        dopmDashboardController.updateBestTimeframe(
+            bestTimeframe
+        )
+
+        dopmDashboardController.updateTradePlan(
+            entry = entryPlan.entry,
+            stop = entryPlan.stop,
+            tp1 = entryPlan.tp1,
+            tp2 = entryPlan.tp2,
+            tp3 = entryPlan.tp3
+        )
+
+        dopmDashboardController.updateTiming(
+            timing = entryPlan.timing,
+            validity =
+                "${entryPlan.validityMinutes} min"
+        )
+
         bestTimeframeView.text =
             "⭐ $bestTimeframe"
 
