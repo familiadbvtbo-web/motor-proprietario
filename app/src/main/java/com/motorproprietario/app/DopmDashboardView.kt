@@ -42,7 +42,7 @@ class DopmDashboardView(
     private val bg = Color.rgb(2, 10, 22)
     private val panel = Color.rgb(4, 21, 40)
     private val dark = Color.rgb(3, 17, 32)
-    private val border = Color.rgb(0, 82, 145)
+    private val border = Color.rgb(0, 88, 155)
     private val green = Color.rgb(0, 235, 125)
     private val red = Color.rgb(255, 65, 75)
     private val blue = Color.rgb(35, 150, 255)
