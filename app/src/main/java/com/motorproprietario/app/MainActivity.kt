@@ -1311,7 +1311,6 @@ private fun analyzeMarket() {
                 )
             }
     }
-}
 
             } finally {
 
