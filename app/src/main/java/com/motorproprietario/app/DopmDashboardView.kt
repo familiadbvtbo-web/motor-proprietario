@@ -1,12 +1,12 @@
 package com.motorproprietario.app
 
-import android.app.AlertDialog
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.widget.*
@@ -18,534 +18,389 @@ class DopmDashboardView(
     context: Context
 ) : ScrollView(context) {
 
-    // =========================================================
-    // CORES
-    // =========================================================
+    private val bg = Color.rgb(2, 10, 22)
+    private val panel = Color.rgb(4, 21, 40)
+    private val dark = Color.rgb(3, 17, 32)
+    private val border = Color.rgb(0, 82, 145)
 
-    private val backgroundColor =
-        Color.rgb(
-            2,
-            10,
-            22
-        )
+    private val green = Color.rgb(0, 235, 125)
+    private val red = Color.rgb(255, 65, 75)
+    private val blue = Color.rgb(35, 150, 255)
+    private val cyan = Color.rgb(0, 220, 230)
+    private val purple = Color.rgb(155, 65, 255)
+    private val yellow = Color.rgb(255, 190, 30)
+    private val white = Color.WHITE
+    private val gray = Color.rgb(165, 185, 215)
+    private val neutral = Color.rgb(170, 195, 230)
 
-    private val panelColor =
-        Color.rgb(
-            4,
-            21,
-            40
-        )
+    private val root = LinearLayout(context)
+    private val content = LinearLayout(context)
 
-    private val panelDark =
-        Color.rgb(
-            3,
-            17,
-            32
-        )
+    private val onlineView = TextView(context)
+    private val clockView = TextView(context)
+    private val dateView = TextView(context)
+    private val apiView = TextView(context)
+    private val priceView = TextView(context)
 
-    private val panelBorder =
-        Color.rgb(
-            0,
-            95,
-            165
-        )
+    private val assetSpinner = Spinner(context)
+    private val timeframeSpinner = Spinner(context)
 
-    private val green =
-        Color.rgb(
-            0,
-            235,
-            125
-        )
+    private val decisionView = TextView(context)
+    private val totalView = TextView(context)
+    private val buyView = TextView(context)
+    private val sellView = TextView(context)
+    private val neutralView = TextView(context)
+    private val decisionIcon = TextView(context)
 
-    private val red =
-        Color.rgb(
-            255,
-            65,
-            75
-        )
+    private val decisionCircle = DecisionCircle(context)
 
-    private val blue =
-        Color.rgb(
-            35,
-            150,
-            255
-        )
+    private val entryView = TextView(context)
+    private val stopView = TextView(context)
+    private val targetsView = TextView(context)
+    private val timingView = TextView(context)
+    private val validityView = TextView(context)
 
-    private val cyan =
-        Color.rgb(
-            0,
-            220,
-            230
-        )
+    private val probabilityView = TextView(context)
+    private val deterministicView = TextView(context)
+    private val mtfView = TextView(context)
+    private val bestTimeframeView = TextView(context)
 
-    private val purple =
-        Color.rgb(
-            155,
-            65,
-            255
-        )
+    private var onMarketChanged: ((String) -> Unit)? = null
+    private var onAssetChanged: ((String) -> Unit)? = null
+    private var onTimeframeChanged: ((String) -> Unit)? = null
 
-    private val yellow =
-        Color.rgb(
-            255,
-            190,
-            30
-        )
-
-    private val white =
-        Color.WHITE
-
-    private val gray =
-        Color.rgb(
-            165,
-            185,
-            215
-        )
-
-    // =========================================================
-    // ROOT
-    // =========================================================
-
-    private val root =
-        LinearLayout(context)
-
-    // =========================================================
-    // CAMPOS
-    // =========================================================
-
-    private val decisionView =
-        TextView(context)
-
-    private val totalView =
-        TextView(context)
-
-    private val buyView =
-        TextView(context)
-
-    private val sellView =
-        TextView(context)
-
-    private val neutralView =
-        TextView(context)
-
-    private val probabilityView =
-        TextView(context)
-
-    private val deterministicView =
-        TextView(context)
-
-    private val mtfView =
-        TextView(context)
-
-    private val entryView =
-        TextView(context)
-
-    private val stopView =
-        TextView(context)
-
-    private val targetsView =
-        TextView(context)
-
-    private val timingView =
-        TextView(context)
-
-    private val validityView =
-        TextView(context)
-
-    private val bestTimeframeView =
-        TextView(context)
-
-    private val priceView =
-        TextView(context)
-
-    private val onlineView =
-        TextView(context)
-
-    private val clockView =
-        TextView(context)
-
-    private val dateView =
-        TextView(context)
-
-    private val apiView =
-        TextView(context)
-
-    private val detailedStatusView =
-        TextView(context)
-
-    private val decisionIcon =
-        TextView(context)
-
-    private val totalCircle =
-        DecisionCircleView(context)
-
-    // =========================================================
-    // SELETORES
-    // =========================================================
-
-    private val assetSpinner =
-        Spinner(context)
-
-    private val timeframeSpinner =
-        Spinner(context)
-
-    private var onMarketChanged:
-        ((String) -> Unit)? =
-        null
-
-    private var onAssetChanged:
-        ((String) -> Unit)? =
-        null
-
-    private var onTimeframeChanged:
-        ((String) -> Unit)? =
-        null
-
-    private var selectedMarket =
-        "FOREX"
-
-    private var suppressInitialSelection =
-        true
+    private var suppressSelection = true
 
     private val marketButtons =
-        LinkedHashMap<
-            String,
-            TextView
-        >()
-
-    // =========================================================
-    // INDICADORES
-    // =========================================================
-
-    private val indicatorViews =
-        LinkedHashMap<
-            String,
-            IndicatorItem
-        >()
-
-    // =========================================================
-    // INICIALIZAÇÃO
-    // =========================================================
+        LinkedHashMap<String, TextView>()
 
     init {
-
-        setBackgroundColor(
-            backgroundColor
-        )
-
-        isFillViewport =
-            true
+        setBackgroundColor(bg)
+        isFillViewport = true
 
         build()
 
         postDelayed({
-
-            suppressInitialSelection =
-                false
-
-        }, 400L)
+            suppressSelection = false
+        }, 500L)
     }
 
-    // =========================================================
-    // BUILD
-    // =========================================================
+    private fun dp(value: Int): Int =
+        (value * resources.displayMetrics.density).toInt()
+
+    private fun txt(
+        value: String,
+        size: Float,
+        color: Int = white,
+        bold: Boolean = false
+    ): TextView {
+
+        return TextView(context).apply {
+            text = value
+            textSize = size
+            setTextColor(color)
+            includeFontPadding = true
+
+            if (bold) {
+                setTypeface(null, Typeface.BOLD)
+            }
+        }
+    }
+
+    private fun rounded(
+        fill: Int,
+        stroke: Int = border,
+        radius: Int = 14
+    ): GradientDrawable {
+
+        return GradientDrawable().apply {
+            setColor(fill)
+            setStroke(dp(1), stroke)
+            cornerRadius = dp(radius).toFloat()
+        }
+    }
+
+    private fun card(
+        stroke: Int = border
+    ): LinearLayout {
+
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+
+            setPadding(
+                dp(10),
+                dp(8),
+                dp(10),
+                dp(8)
+            )
+
+            background =
+                rounded(
+                    dark,
+                    stroke,
+                    14
+                )
+        }
+    }
+
+    private fun gap(height: Int = 5) {
+
+        content.addView(
+            View(context),
+            LinearLayout.LayoutParams(
+                1,
+                dp(height)
+            )
+        )
+    }
 
     private fun build() {
+
+        content.orientation =
+            LinearLayout.VERTICAL
+
+        content.setPadding(
+            dp(10),
+            dp(8),
+            dp(10),
+            dp(16)
+        )
+
+        content.setBackgroundColor(bg)
 
         root.orientation =
             LinearLayout.VERTICAL
 
-        root.setPadding(
-            dp(10),
-            dp(8),
-            dp(10),
-            dp(12)
-        )
-
-        root.setBackgroundColor(
-            backgroundColor
+        root.addView(
+            content,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         )
 
         addView(
-
             root,
-
             LayoutParams(
                 LayoutParams.MATCH_PARENT,
-                LayoutParams.WRAP_CONTENT
+                LayoutParams.MATCH_PARENT
             )
         )
 
         buildHeader()
-
         buildSelectors()
-
         buildDecision()
-
         buildTradePlan()
-
         buildTiming()
-
         buildConfidence()
-
         buildIndicators()
-
-        buildDetailedAnalysis()
-
+        buildDetailed()
         buildBottomNavigation()
 
         startClock()
     }
 
-    // =========================================================
-    // HEADER
-    // =========================================================
-
     private fun buildHeader() {
 
         val row =
-            LinearLayout(context)
-
-        row.orientation =
-            LinearLayout.HORIZONTAL
-
-        row.gravity =
-            Gravity.CENTER_VERTICAL
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
 
         val brand =
-            LinearLayout(context)
-
-        brand.orientation =
-            LinearLayout.VERTICAL
-
-        brand.addView(
-
-            label(
-                "🐂  DOPM",
-                25f,
-                true
-            )
-        )
-
-        brand.addView(
-
-            label(
-                "MOTOR PROPRIETÁRIO",
-                12f,
-                true
-            )
-        )
-
-        brand.addView(
-
-            label(
-                "ANÁLISE • PRECISÃO • RESULTADO",
-                8f,
-                false
-            ).apply {
-
-                setTextColor(
-                    cyan
-                )
+            LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
             }
+
+        brand.addView(
+            txt(
+                "🐂  DOPM",
+                26f,
+                white,
+                true
+            )
+        )
+
+        brand.addView(
+            txt(
+                "MOTOR PROPRIETÁRIO",
+                13f,
+                white,
+                true
+            )
+        )
+
+        brand.addView(
+            txt(
+                "ANÁLISE • PRECISÃO • RESULTADO",
+                9f,
+                cyan
+            )
         )
 
         row.addView(
-
             brand,
-
             LinearLayout.LayoutParams(
                 0,
-                dp(78),
+                dp(82),
                 1f
             )
         )
 
         val status =
-            LinearLayout(context)
+            LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.END
+            }
 
-        status.orientation =
-            LinearLayout.VERTICAL
+        onlineView.apply {
+            text = "● ONLINE"
+            textSize = 12f
+            setTextColor(green)
+            setTypeface(null, Typeface.BOLD)
+            gravity = Gravity.END
+        }
 
-        status.gravity =
-            Gravity.END
+        clockView.apply {
+            text = "◷ --:--:--"
+            textSize = 10f
+            setTextColor(white)
+            gravity = Gravity.END
+        }
 
-        onlineView.text =
-            "● ONLINE"
+        dateView.apply {
+            text = "▣ --/--/----"
+            textSize = 10f
+            setTextColor(white)
+            gravity = Gravity.END
+        }
 
-        onlineView.textSize =
-            12f
+        apiView.apply {
+            text = "API DE DADOS • TWELVE DATA"
+            textSize = 9f
+            setTextColor(blue)
+            gravity = Gravity.END
+        }
 
-        onlineView.setTypeface(
-            null,
-            Typeface.BOLD
-        )
+        priceView.apply {
+            text = "Preço: --"
+            textSize = 9f
+            setTextColor(gray)
+            gravity = Gravity.END
+        }
 
-        onlineView.setTextColor(
-            green
-        )
-
-        status.addView(
-            onlineView
-        )
-
-        clockView.text =
-            "◷ --:--:--"
-
-        clockView.textSize =
-            10f
-
-        clockView.setTextColor(
-            white
-        )
-
-        status.addView(
-            clockView
-        )
-
-        dateView.text =
-            "▣ --/--/----"
-
-        dateView.textSize =
-            10f
-
-        dateView.setTextColor(
-            white
-        )
-
-        status.addView(
-            dateView
-        )
-
-        apiView.text =
-            "API DE DADOS"
-
-        apiView.textSize =
-            9f
-
-        apiView.setTextColor(
-            blue
-        )
-
-        status.addView(
-            apiView
-        )
-
-        priceView.text =
-            "Preço: --"
-
-        priceView.textSize =
-            9f
-
-        priceView.setTextColor(
-            gray
-        )
-
-        status.addView(
-            priceView
-        )
+        status.addView(onlineView)
+        status.addView(clockView)
+        status.addView(dateView)
+        status.addView(apiView)
+        status.addView(priceView)
 
         row.addView(
-
             status,
-
             LinearLayout.LayoutParams(
-                dp(145),
-                dp(78)
+                dp(165),
+                dp(82)
             )
         )
 
-        root.addView(
-
-            row,
-
-            marginParams(
-                0,
-                0,
-                0,
-                6
-            )
-        )
+        content.addView(row)
+        gap(6)
     }
-
-    // =========================================================
-    // SELETORES
-    // =========================================================
 
     private fun buildSelectors() {
 
         val row =
-            LinearLayout(context)
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
 
-        row.orientation =
-            LinearLayout.HORIZONTAL
+        val market = card()
 
-        val marketBox =
-            panel(
-                panelBorder
-            )
-
-        marketBox.addView(
-            smallLabel(
-                "MERCADO"
+        market.addView(
+            txt(
+                "MERCADO",
+                10f,
+                gray,
+                true
             )
         )
 
         val marketRow =
-            LinearLayout(context)
-
-        marketRow.orientation =
-            LinearLayout.HORIZONTAL
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
 
         listOf(
-
             "FOREX" to "◎ FOREX",
-
             "CRIPTO" to "₿ CRIPTO",
-
             "B3" to "▥ B3"
-
-        ).forEach {
-
-            pair ->
+        ).forEach { pair ->
 
             val button =
-                marketButton(
+                txt(
                     pair.second,
-                    pair.first
-                )
+                    10f,
+                    white,
+                    true
+                ).apply {
 
-            marketButtons[
-                pair.first
-            ] =
+                    gravity = Gravity.CENTER
+
+                    setPadding(
+                        dp(2),
+                        dp(7),
+                        dp(2),
+                        dp(7)
+                    )
+
+                    background =
+                        rounded(
+                            panel,
+                            border,
+                            10
+                        )
+
+                    setOnClickListener {
+
+                        selectMarket(pair.first)
+
+                        onMarketChanged?.invoke(
+                            pair.first
+                        )
+                    }
+                }
+
+            marketButtons[pair.first] =
                 button
 
             marketRow.addView(
-
                 button,
-
-                weightParams(
+                LinearLayout.LayoutParams(
+                    0,
+                    dp(38),
                     1f
-                )
+                ).apply {
+                    marginEnd = dp(3)
+                }
             )
         }
 
-        marketBox.addView(
-            marketRow
-        )
+        market.addView(marketRow)
 
         row.addView(
-
-            marketBox,
-
-            weightParams(
-                1.55f
-            )
+            market,
+            LinearLayout.LayoutParams(
+                0,
+                dp(78),
+                1.45f
+            ).apply {
+                marginEnd = dp(5)
+            }
         )
 
         val assets =
             listOf(
-
                 "EUR/USD",
                 "GBP/USD",
                 "USD/JPY",
@@ -563,33 +418,52 @@ class DopmDashboardView(
 
         assetSpinner.adapter =
             ArrayAdapter(
-
                 context,
-
                 android.R.layout.simple_spinner_dropdown_item,
-
                 assets
             )
 
-        assetSpinner.setSelection(
-            0
-        )
+        assetSpinner.setSelection(0)
+
+        assetSpinner.onItemSelectedListener =
+            object :
+                AdapterView.OnItemSelectedListener {
+
+                override fun onItemSelected(
+                    parent: AdapterView<*>?,
+                    view: View?,
+                    position: Int,
+                    id: Long
+                ) {
+
+                    if (!suppressSelection) {
+                        onAssetChanged?.invoke(
+                            assets[position]
+                        )
+                    }
+                }
+
+                override fun onNothingSelected(
+                    parent: AdapterView<*>?
+                ) {}
+            }
 
         row.addView(
-
             selector(
                 "ATIVO",
                 assetSpinner
             ),
-
-            weightParams(
-                1.15f
-            )
+            LinearLayout.LayoutParams(
+                0,
+                dp(78),
+                1.1f
+            ).apply {
+                marginEnd = dp(5)
+            }
         )
 
         val timeframes =
             listOf(
-
                 "M1",
                 "M5",
                 "M15",
@@ -601,1494 +475,116 @@ class DopmDashboardView(
 
         timeframeSpinner.adapter =
             ArrayAdapter(
-
                 context,
-
                 android.R.layout.simple_spinner_dropdown_item,
-
                 timeframes
             )
 
-        timeframeSpinner.setSelection(
-            2
-        )
+        timeframeSpinner.setSelection(2)
+
+        timeframeSpinner.onItemSelectedListener =
+            object :
+                AdapterView.OnItemSelectedListener {
+
+                override fun onItemSelected(
+                    parent: AdapterView<*>?,
+                    view: View?,
+                    position: Int,
+                    id: Long
+                ) {
+
+                    if (!suppressSelection) {
+                        onTimeframeChanged?.invoke(
+                            timeframes[position]
+                        )
+                    }
+                }
+
+                override fun onNothingSelected(
+                    parent: AdapterView<*>?
+                ) {}
+            }
 
         row.addView(
-
             selector(
                 "TIMEFRAME",
                 timeframeSpinner
             ),
-
-            weightParams(
-                0.95f
+            LinearLayout.LayoutParams(
+                0,
+                dp(78),
+                0.9f
             )
         )
 
-        root.addView(
-
-            row,
-
-            marginParams(
-                0,
-                0,
-                0,
-                5
-            )
-        )
+        content.addView(row)
+        gap()
 
         val best =
-            panel(
-                Color.rgb(
-                    0,
-                    105,
-                    75
-                )
+            card(
+                Color.rgb(0, 105, 75)
             )
 
         val bestRow =
-            LinearLayout(context)
-
-        bestRow.orientation =
-            LinearLayout.HORIZONTAL
-
-        bestRow.gravity =
-            Gravity.CENTER_VERTICAL
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
 
         bestRow.addView(
-
-            label(
+            txt(
                 "★",
-                28f,
-                true
-            ).apply {
-
-                setTextColor(
-                    green
-                )
-            },
-
-            LinearLayout.LayoutParams(
-                dp(45),
-                dp(45)
-            )
-        )
-
-        val bestText =
-            LinearLayout(context)
-
-        bestText.orientation =
-            LinearLayout.VERTICAL
-
-        bestText.addView(
-
-            smallLabel(
-                "MELHOR TIMEFRAME"
-            )
-        )
-
-        bestTimeframeView.text =
-            "--"
-
-        bestTimeframeView.textSize =
-            20f
-
-        bestTimeframeView.setTypeface(
-            null,
-            Typeface.BOLD
-        )
-
-        bestTimeframeView.setTextColor(
-            green
-        )
-
-        bestText.addView(
-            bestTimeframeView
-        )
-
-        bestRow.addView(
-            bestText
-        )
-
-        best.addView(
-            bestRow
-        )
-
-        root.addView(
-
-            best,
-
-            marginParams(
-                0,
-                0,
-                0,
-                6
-            )
-        )
-    }
-
-    // =========================================================
-    // DECISÃO
-    // =========================================================
-
-    private fun buildDecision() {
-
-        val box =
-            panel(
-                Color.rgb(
-                    0,
-                    110,
-                    70
-                )
-            )
-
-        val row =
-            LinearLayout(context)
-
-        row.orientation =
-            LinearLayout.HORIZONTAL
-
-        row.gravity =
-            Gravity.CENTER_VERTICAL
-
-        decisionIcon.text =
-            "→"
-
-        decisionIcon.textSize =
-            34f
-
-        decisionIcon.gravity =
-            Gravity.CENTER
-
-        decisionIcon.setTypeface(
-            null,
-            Typeface.BOLD
-        )
-
-        decisionIcon.setTextColor(
-            Color.WHITE
-        )
-
-        decisionIcon.background =
-            rounded(
-                Color.rgb(
-                    70,
-                    90,
-                    115
-                ),
-                16
-            )
-
-        row.addView(
-
-            decisionIcon,
-
-            LinearLayout.LayoutParams(
-                dp(70),
-                dp(70)
-            ).apply {
-
-                rightMargin =
-                    dp(9)
-            }
-        )
-
-        val decision =
-            LinearLayout(context)
-
-        decision.orientation =
-            LinearLayout.VERTICAL
-
-        decision.addView(
-
-            smallLabel(
-                "DECISÃO"
-            )
-        )
-
-        decisionView.text =
-            "AGUARDAR"
-
-        decisionView.textSize =
-            28f
-
-        decisionView.setTypeface(
-            null,
-            Typeface.BOLD
-        )
-
-        decisionView.setTextColor(
-            white
-        )
-
-        decision.addView(
-            decisionView
-        )
-
-        totalView.text =
-            "TOTAL: ---%"
-
-        totalView.textSize =
-            16f
-
-        totalView.setTypeface(
-            null,
-            Typeface.BOLD
-        )
-
-        decision.addView(
-            totalView
-        )
-
-        row.addView(
-
-            decision,
-
-            LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-        )
-
-        row.addView(
-
-            totalCircle,
-
-            LinearLayout.LayoutParams(
-                dp(112),
-                dp(112)
-            ).apply {
-
-                rightMargin =
-                    dp(7)
-            }
-        )
-
-        val breakdown =
-            LinearLayout(context)
-
-        breakdown.orientation =
-            LinearLayout.VERTICAL
-
-        buyView.text =
-            "● COMPRA   ---%"
-
-        buyView.textSize =
-            13f
-
-        buyView.setTextColor(
-            green
-        )
-
-        sellView.text =
-            "● VENDA    ---%"
-
-        sellView.textSize =
-            13f
-
-        sellView.setTextColor(
-            red
-        )
-
-        neutralView.text =
-            "● NEUTRO   ---%"
-
-        neutralView.textSize =
-            13f
-
-        neutralView.setTextColor(
-
-            Color.rgb(
-                170,
-                195,
-                230
-            )
-        )
-
-        breakdown.addView(
-            buyView
-        )
-
-        breakdown.addView(
-            sellView
-        )
-
-        breakdown.addView(
-            neutralView
-        )
-
-        row.addView(
-
-            breakdown,
-
-            LinearLayout.LayoutParams(
-                dp(140),
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        )
-
-        box.addView(
-            row
-        )
-
-        root.addView(
-
-            box,
-
-            marginParams(
-                0,
-                0,
-                0,
-                6
-            )
-        )
-    }
-
-    // =========================================================
-    // TRADE PLAN
-    // =========================================================
-
-    private fun buildTradePlan() {
-
-        val row =
-            LinearLayout(context)
-
-        row.orientation =
-            LinearLayout.HORIZONTAL
-
-        row.addView(
-
-            information(
-                "◎",
-                "ENTRADA",
-                "--",
-                entryView,
-                blue
-            ),
-
-            weightParams(
-                1f
-            )
-        )
-
-        row.addView(
-
-            information(
-                "▽",
-                "STOP",
-                "--",
-                stopView,
-                red
-            ),
-
-            weightParams(
-                1f
-            )
-        )
-
-        row.addView(
-
-            information(
-                "◎",
-                "TAKE PROFIT",
-                "TP1 --\nTP2 --\nTP3 --",
-                targetsView,
-                green
-            ),
-
-            weightParams(
-                1.4f
-            )
-        )
-
-        root.addView(
-
-            row,
-
-            marginParams(
-                0,
-                0,
-                0,
-                5
-            )
-        )
-    }
-
-    // =========================================================
-    // TIMING
-    // =========================================================
-
-    private fun buildTiming() {
-
-        val row =
-            LinearLayout(context)
-
-        row.orientation =
-            LinearLayout.HORIZONTAL
-
-        row.addView(
-
-            information(
-                "◷",
-                "TIMING",
-                "AGUARDAR",
-                timingView,
-                blue
-            ),
-
-            weightParams(
-                1f
-            )
-        )
-
-        row.addView(
-
-            information(
-                "▣",
-                "VALIDADE",
-                "--",
-                validityView,
-                blue
-            ),
-
-            weightParams(
-                1f
-            )
-        )
-
-        root.addView(
-
-            row,
-
-            marginParams(
-                0,
-                0,
-                0,
-                5
-            )
-        )
-    }
-
-    // =========================================================
-    // CONFIANÇA
-    // =========================================================
-
-    private fun buildConfidence() {
-
-        val box =
-            panel(
-                panelBorder
-            )
-
-        val row =
-            LinearLayout(context)
-
-        row.orientation =
-            LinearLayout.HORIZONTAL
-
-        row.addView(
-
-            confidence(
-                "PROBABILIDADE",
-                probabilityView,
-                blue
-            ),
-
-            weightParams(
-                1f
-            )
-        )
-
-        row.addView(
-
-            confidence(
-                "DETERMINISMO",
-                deterministicView,
-                purple
-            ),
-
-            weightParams(
-                1f
-            )
-        )
-
-        row.addView(
-
-            confidence(
-                "CONFLUÊNCIA MTF",
-                mtfView,
-                yellow
-            ),
-
-            weightParams(
-                1f
-            )
-        )
-
-        box.addView(
-            row
-        )
-
-        root.addView(
-
-            box,
-
-            marginParams(
-                0,
-                0,
-                0,
-                5
-            )
-        )
-    }
-
-    // =========================================================
-    // INDICADORES
-    // =========================================================
-
-    private fun buildIndicators() {
-
-        val box =
-            panel(
-                panelBorder
-            )
-
-        val row =
-            LinearLayout(context)
-
-        row.orientation =
-            LinearLayout.HORIZONTAL
-
-        val names =
-            listOf(
-                "FI",
-                "FSI",
-                "RSI",
-                "MACD",
-                "EMA",
-                "ADX"
-            )
-
-        val colors =
-            listOf(
-
-                green,
-                blue,
-                purple,
-                cyan,
-
-                Color.rgb(
-                    255,
-                    110,
-                    50
-                ),
-
-                yellow
-            )
-
-        names.forEachIndexed {
-
-            index,
-            name ->
-
-            val item =
-                IndicatorItem(
-
-                    context,
-
-                    name,
-
-                    colors[index]
-                )
-
-            indicatorViews[name] =
-                item
-
-            row.addView(
-
-                item,
-
-                weightParams(
-                    1f
-                )
-            )
-        }
-
-        box.addView(
-            row
-        )
-
-        root.addView(
-
-            box,
-
-            marginParams(
-                0,
-                0,
-                0,
-                6
-            )
-        )
-    }
-
-    // =========================================================
-    // ANÁLISE DETALHADA
-    // =========================================================
-
-    private fun buildDetailedAnalysis() {
-
-        val box =
-            panel(
-                panelBorder
-            )
-
-        val header =
-            LinearLayout(context)
-
-        header.orientation =
-            LinearLayout.HORIZONTAL
-
-        header.gravity =
-            Gravity.CENTER_VERTICAL
-
-        header.addView(
-
-            label(
-                "◎",
                 30f,
+                green,
                 true
-            ).apply {
-
-                setTextColor(
-                    cyan
-                )
-            },
-
+            ),
             LinearLayout.LayoutParams(
-                dp(45),
-                dp(45)
-            )
-        )
-
-        val title =
-            LinearLayout(context)
-
-        title.orientation =
-            LinearLayout.VERTICAL
-
-        title.addView(
-
-            label(
-                "ANÁLISE DETALHADA",
-                14f,
-                true
-            )
-        )
-
-        detailedStatusView.text =
-            "Veja todos os cálculos, indicadores e a calibração do motor."
-
-        detailedStatusView.textSize =
-            9f
-
-        detailedStatusView.setTextColor(
-            gray
-        )
-
-        title.addView(
-            detailedStatusView
-        )
-
-        header.addView(
-
-            title,
-
-            LinearLayout.LayoutParams(
-                0,
-                LinearLayout.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-        )
-
-        header.addView(
-
-            label(
-                "›",
-                34f,
-                false
-            ).apply {
-
-                setTextColor(
-                    gray
-                )
-            },
-
-            LinearLayout.LayoutParams(
-                dp(30),
-                dp(45)
-            )
-        )
-
-        box.addView(
-            header
-        )
-
-        val modules =
-            listOf(
-
-                "☷" to
-                    ("Calibração" to green),
-
-                "◴" to
-                    ("Histórico" to purple),
-
-                "▱" to
-                    ("MTF" to blue),
-
-                "♧" to
-                    ("FSI" to cyan),
-
-                "⌁" to
-                    (
-                        "Fibonacci" to
-                            Color.rgb(
-                                230,
-                                40,
-                                130
-                            )
-                    ),
-
-                "〽" to
-                    ("RSI" to cyan),
-
-                "▥" to
-                    (
-                        "MACD" to
-                            Color.rgb(
-                                255,
-                                105,
-                                35
-                            )
-                    ),
-
-                "⌁" to
-                    ("EMA" to yellow),
-
-                "▥" to
-                    ("ADX" to green),
-
-                "♧" to
-                    ("Estrutura" to purple),
-
-                "⚠" to
-                    ("Armadilha" to red),
-
-                "▱" to
-                    ("Acumulação" to cyan),
-
-                "▱" to
-                    ("Distribuição" to yellow),
-
-                "ϟ" to
-                    (
-                        "Exaustão" to
-                            Color.rgb(
-                                255,
-                                40,
-                                100
-                            )
-                    )
-            )
-
-        val grid =
-            LinearLayout(context)
-
-        grid.orientation =
-            LinearLayout.VERTICAL
-
-        modules.chunked(5).forEach {
-
-            group ->
-
-            val moduleRow =
-                LinearLayout(context)
-
-            moduleRow.orientation =
-                LinearLayout.HORIZONTAL
-
-            group.forEach {
-
-                item ->
-
-                val module =
-                    moduleView(
-
-                        item.first,
-
-                        item.second.first,
-
-                        item.second.second
-                    )
-
-                moduleRow.addView(
-
-                    module,
-
-                    weightParams(
-                        1f
-                    )
-                )
-            }
-
-            while (
-                moduleRow.childCount < 5
-            ) {
-
-                moduleRow.addView(
-
-                    Space(context),
-
-                    weightParams(
-                        1f
-                    )
-                )
-            }
-
-            grid.addView(
-
-                moduleRow,
-
-                marginParams(
-                    0,
-                    0,
-                    0,
-                    2
-                )
-            )
-        }
-
-        box.addView(
-            grid
-        )
-
-        box.setOnClickListener {
-
-            showDetailedMessage()
-        }
-
-        root.addView(
-
-            box,
-
-            marginParams(
-                0,
-                0,
-                0,
-                6
-            )
-        )
-    }
-
-    // =========================================================
-    // NAVEGAÇÃO
-    // =========================================================
-
-    private fun buildBottomNavigation() {
-
-        val nav =
-            LinearLayout(context)
-
-        nav.orientation =
-            LinearLayout.HORIZONTAL
-
-        nav.gravity =
-            Gravity.CENTER
-
-        val items =
-            listOf(
-
-                "⌂\nPrincipal",
-
-                "▥\nGráficos",
-
-                "▤\nAnálise Detalhada",
-
-                "⚙\nConfigurações"
-            )
-
-        items.forEachIndexed {
-
-            index,
-            item ->
-
-            val itemView =
-                label(
-                    item,
-                    9f,
-                    true
-                )
-
-            itemView.gravity =
-                Gravity.CENTER
-
-            itemView.setTextColor(
-
-                if (
-                    index == 0
-                ) {
-
-                    green
-
-                } else {
-
-                    gray
-                }
-            )
-
-            nav.addView(
-
-                itemView,
-
-                weightParams(
-                    1f
-                )
-            )
-        }
-
-        root.addView(
-
-            nav,
-
-            LinearLayout.LayoutParams(
-                -1,
-                dp(58)
-            )
-        )
-    }
-
-    // =========================================================
-    // LISTENERS
-    // =========================================================
-
-    fun setSelectionListeners(
-
-        marketChanged:
-            (String) -> Unit,
-
-        assetChanged:
-            (String) -> Unit,
-
-        timeframeChanged:
-            (String) -> Unit
-
-    ) {
-
-        onMarketChanged =
-            marketChanged
-
-        onAssetChanged =
-            assetChanged
-
-        onTimeframeChanged =
-            timeframeChanged
-
-        assetSpinner.onItemSelectedListener =
-
-            object :
-                AdapterView.OnItemSelectedListener {
-
-                override fun onNothingSelected(
-                    parent: AdapterView<*>?
-                ) {
-                }
-
-                override fun onItemSelected(
-
-                    parent: AdapterView<*>?,
-
-                    view: View?,
-
-                    position: Int,
-
-                    id: Long
-
-                ) {
-
-                    if (
-                        suppressInitialSelection
-                    ) {
-                        return
-                    }
-
-                    onAssetChanged?.invoke(
-
-                        assetSpinner
-                            .selectedItem
-                            .toString()
-                    )
-                }
-            }
-
-        timeframeSpinner.onItemSelectedListener =
-
-            object :
-                AdapterView.OnItemSelectedListener {
-
-                override fun onNothingSelected(
-                    parent: AdapterView<*>?
-                ) {
-                }
-
-                override fun onItemSelected(
-
-                    parent: AdapterView<*>?,
-
-                    view: View?,
-
-                    position: Int,
-
-                    id: Long
-
-                ) {
-
-                    if (
-                        suppressInitialSelection
-                    ) {
-                        return
-                    }
-
-                    onTimeframeChanged?.invoke(
-
-                        timeframeSpinner
-                            .selectedItem
-                            .toString()
-                    )
-                }
-            }
-    }
-
-    // =========================================================
-    // BOTÕES DE MERCADO
-    // =========================================================
-
-    private fun marketButton(
-
-        text: String,
-
-        market: String
-
-    ): TextView {
-
-        return TextView(context).apply {
-
-            this.text =
-                text
-
-            textSize =
-                10f
-
-            gravity =
-                Gravity.CENTER
-
-            setTypeface(
-                null,
-                Typeface.BOLD
-            )
-
-            setPadding(
-                dp(2),
-                dp(7),
-                dp(2),
-                dp(7)
-            )
-
-            updateMarketButtonAppearance(
-
-                this,
-
-                market
-            )
-
-            setOnClickListener {
-
-                if (
-                    selectedMarket ==
-                    market
-                ) {
-                    return@setOnClickListener
-                }
-
-                selectedMarket =
-                    market
-
-                updateMarketButtons()
-
-                onMarketChanged?.invoke(
-                    market
-                )
-            }
-        }
-    }
-
-    private fun updateMarketButtons() {
-
-        marketButtons.forEach {
-
-            market,
-            button ->
-
-            updateMarketButtonAppearance(
-
-                button,
-
-                market
-            )
-        }
-    }
-
-    private fun updateMarketButtonAppearance(
-
-        button: TextView,
-
-        market: String
-
-    ) {
-
-        val active =
-            market ==
-                selectedMarket
-
-        button.setTextColor(
-
-            if (
-                active
-            ) {
-
-                green
-
-            } else {
-
-                white
-            }
-        )
-
-        button.background =
-            GradientDrawable().apply {
-
-                setColor(
-                    panelDark
-                )
-
-                setStroke(
-
-                    dp(1),
-
-                    if (
-                        active
-                    ) {
-
-                        green
-
-                    } else {
-
-                        panelBorder
-                    }
-                )
-
-                cornerRadius =
-                    dp(9).toFloat()
-            }
-    }
-
-    // =========================================================
-    // SELECTOR
-    // =========================================================
-
-    private fun selector(
-
-        title: String,
-
-        spinner: Spinner
-
-    ): LinearLayout {
-
-        val box =
-            panel(
-                panelBorder
-            )
-
-        box.addView(
-
-            smallLabel(
-                title
-            )
-        )
-
-        box.addView(
-
-            spinner,
-
-            LinearLayout.LayoutParams(
-                -1,
-                dp(40)
-            )
-        )
-
-        return box
-    }
-
-    // =========================================================
-    // INFORMATION
-    // =========================================================
-
-    private fun information(
-
-        icon: String,
-
-        title: String,
-
-        value: String,
-
-        target: TextView,
-
-        iconColor: Int
-
-    ): LinearLayout {
-
-        val box =
-            panel(
-                panelBorder
-            )
-
-        val row =
-            LinearLayout(context)
-
-        row.orientation =
-            LinearLayout.HORIZONTAL
-
-        row.gravity =
-            Gravity.CENTER_VERTICAL
-
-        row.addView(
-
-            label(
-                icon,
-                23f,
-                true
-            ).apply {
-
-                setTextColor(
-                    iconColor
-                )
-            },
-
-            LinearLayout.LayoutParams(
-                dp(36),
+                dp(48),
                 dp(55)
             )
         )
 
-        val values =
-            LinearLayout(context)
-
-        values.orientation =
-            LinearLayout.VERTICAL
-
-        values.addView(
-
-            smallLabel(
-                title
-            )
-        )
-
-        target.text =
-            value
-
-        target.textSize =
-            13f
-
-        target.setTypeface(
-            null,
-            Typeface.BOLD
-        )
-
-        target.setTextColor(
-            white
-        )
-
-        values.addView(
-            target
-        )
-
-        row.addView(
-            values
-        )
-
-        box.addView(
-            row
-        )
-
-        return box
-    }
-
-    // =========================================================
-    // CONFIDENCE
-    // =========================================================
-
-    private fun confidence(
-
-        title: String,
-
-        target: TextView,
-
-        valueColor: Int
-
-    ): LinearLayout {
-
-        val box =
-            LinearLayout(context)
-
-        box.orientation =
-            LinearLayout.VERTICAL
-
-        box.gravity =
-            Gravity.CENTER
-
-        box.setPadding(
-
-            dp(2),
-            dp(6),
-            dp(2),
-            dp(6)
-        )
-
-        box.addView(
-
-            smallLabel(
-                title
-            )
-        )
-
-        target.text =
-            "--%"
-
-        target.textSize =
-            17f
-
-        target.setTypeface(
-            null,
-            Typeface.BOLD
-        )
-
-        target.setTextColor(
-            valueColor
-        )
-
-        box.addView(
-            target
-        )
-
-        return box
-    }
-
-    // =========================================================
-    // MÓDULO
-    // =========================================================
-
-    private fun moduleView(
-
-        icon: String,
-
-        name: String,
-
-        color: Int
-
-    ): LinearLayout {
-
-        val box =
-            LinearLayout(context)
-
-        box.orientation =
-            LinearLayout.VERTICAL
-
-        box.gravity =
-            Gravity.CENTER
-
-        box.setPadding(
-
-            dp(2),
-            dp(5),
-            dp(2),
-            dp(5)
-        )
-
-        box.background =
-            GradientDrawable().apply {
-
-                setColor(
-                    panelDark
-                )
-
-                setStroke(
-                    dp(1),
-                    panelBorder
-                )
-
-                cornerRadius =
-                    dp(8).toFloat()
+        val bestText =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
             }
 
-        box.addView(
-
-            label(
-                icon,
-                22f,
+        bestText.addView(
+            txt(
+                "MELHOR TIMEFRAME",
+                10f,
+                gray,
                 true
-            ).apply {
-
-                gravity =
-                    Gravity.CENTER
-
-                setTextColor(
-                    color
-                )
-            }
-        )
-
-        box.addView(
-
-            label(
-                name,
-                8f,
-                false
-            ).apply {
-
-                gravity =
-                    Gravity.CENTER
-
-                setTextColor(
-                    gray
-                )
-            }
-        )
-
-        box.setOnClickListener {
-
-            showModuleMessage(
-                name
             )
+        )
+
+        bestTimeframeView.apply {
+            text = "--"
+            textSize = 22f
+            setTextColor(green)
+            setTypeface(null, Typeface.BOLD)
         }
 
-        return box
+        bestText.addView(bestTimeframeView)
+        bestRow.addView(bestText)
+        best.addView(bestRow)
+
+        content.addView(
+            best,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(70)
+            )
+        )
+
+        gap()
+
+        selectMarket("FOREX")
     }
 
-    // =========================================================
-    // PANEL
-    // =========================================================
-
-    private fun panel(
-        border: Int
+    private fun selector(
+        title: String,
+        spinner: Spinner
     ): LinearLayout {
 
         return LinearLayout(context).apply {
@@ -2096,338 +592,920 @@ class DopmDashboardView(
             orientation =
                 LinearLayout.VERTICAL
 
-            setPadding(
+            gravity =
+                Gravity.CENTER_VERTICAL
 
-                dp(7),
-                dp(6),
-                dp(7),
-                dp(6)
+            setPadding(
+                dp(8),
+                dp(5),
+                dp(4),
+                dp(4)
             )
 
             background =
-                GradientDrawable().apply {
+                rounded(
+                    dark,
+                    border,
+                    14
+                )
 
-                    setColor(
-                        panelColor
-                    )
+            addView(
+                txt(
+                    title,
+                    10f,
+                    gray,
+                    true
+                )
+            )
 
-                    setStroke(
-
-                        dp(1),
-
-                        border
-                    )
-
-                    cornerRadius =
-                        dp(11).toFloat()
-                }
+            addView(
+                spinner,
+                LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    dp(42)
+                )
+            )
         }
     }
 
-    // =========================================================
-    // LABEL
-    // =========================================================
+    private fun selectMarket(
+        market: String
+    ) {
 
-    private fun label(
+        marketButtons.forEach { item ->
 
-        value: String,
+            val active =
+                item.key == market
 
-        size: Float,
+            item.value.background =
+                rounded(
+                    if (active) {
+                        Color.rgb(3, 48, 38)
+                    } else {
+                        panel
+                    },
+                    if (active) {
+                        green
+                    } else {
+                        border
+                    },
+                    10
+                )
 
-        bold: Boolean
+            item.value.setTextColor(
+                if (active) green else white
+            )
+        }
+    }
 
-    ): TextView {
+    private fun buildDecision() {
 
-        return TextView(context).apply {
-
-            text =
-                value
-
-            textSize =
-                size
-
-            setTextColor(
-                white
+        val box =
+            card(
+                Color.rgb(0, 110, 70)
             )
 
-            if (
-                bold
-            ) {
+        val row =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
 
-                setTypeface(
-                    null,
-                    Typeface.BOLD
+        decisionIcon.apply {
+
+            text = "→"
+            textSize = 34f
+            gravity = Gravity.CENTER
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(white)
+
+            background =
+                rounded(
+                    Color.rgb(70, 90, 115),
+                    Color.rgb(70, 90, 115),
+                    16
+                )
+        }
+
+        row.addView(
+            decisionIcon,
+            LinearLayout.LayoutParams(
+                dp(72),
+                dp(82)
+            ).apply {
+                marginEnd = dp(8)
+            }
+        )
+
+        val decision =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+        decision.addView(
+            txt(
+                "DECISÃO",
+                11f,
+                gray,
+                true
+            )
+        )
+
+        decisionView.apply {
+
+            text = "AGUARDAR"
+            textSize = 26f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(white)
+            maxLines = 1
+            ellipsize =
+                TextUtils.TruncateAt.END
+        }
+
+        decision.addView(decisionView)
+
+        totalView.apply {
+
+            text = "TOTAL: ---%"
+            textSize = 16f
+            setTypeface(null, Typeface.BOLD)
+            setTextColor(white)
+            maxLines = 1
+        }
+
+        decision.addView(totalView)
+
+        row.addView(
+            decision,
+            LinearLayout.LayoutParams(
+                0,
+                dp(92),
+                1f
+            ).apply {
+                marginEnd = dp(5)
+            }
+        )
+
+        row.addView(
+            decisionCircle,
+            LinearLayout.LayoutParams(
+                dp(112),
+                dp(112)
+            ).apply {
+                marginEnd = dp(5)
+            }
+        )
+
+        val breakdown =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+        buyView.apply {
+            text = "● COMPRA   ---%"
+            textSize = 13f
+            setTextColor(green)
+            maxLines = 1
+        }
+
+        sellView.apply {
+            text = "● VENDA    ---%"
+            textSize = 13f
+            setTextColor(red)
+            maxLines = 1
+        }
+
+        neutralView.apply {
+            text = "● NEUTRO   ---%"
+            textSize = 13f
+            setTextColor(neutral)
+            maxLines = 1
+        }
+
+        breakdown.addView(buyView)
+        breakdown.addView(sellView)
+        breakdown.addView(neutralView)
+
+        row.addView(
+            breakdown,
+            LinearLayout.LayoutParams(
+                dp(140),
+                dp(100)
+            )
+        )
+
+        box.addView(row)
+
+        content.addView(
+            box,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(132)
+            )
+        )
+
+        gap()
+    }
+
+    private fun buildTradePlan() {
+
+        val row =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
+
+        row.addView(
+            information(
+                "◎",
+                "ENTRADA",
+                "--",
+                entryView,
+                blue
+            ),
+            LinearLayout.LayoutParams(
+                0,
+                dp(98),
+                1f
+            ).apply {
+                marginEnd = dp(5)
+            }
+        )
+
+        row.addView(
+            information(
+                "▽",
+                "STOP",
+                "--",
+                stopView,
+                red
+            ),
+            LinearLayout.LayoutParams(
+                0,
+                dp(98),
+                1f
+            ).apply {
+                marginEnd = dp(5)
+            }
+        )
+
+        row.addView(
+            information(
+                "◎",
+                "TAKE PROFIT",
+                "TP1 --\nTP2 --\nTP3 --",
+                targetsView,
+                green
+            ),
+            LinearLayout.LayoutParams(
+                0,
+                dp(98),
+                1.35f
+            )
+        )
+
+        content.addView(row)
+        gap()
+    }
+
+    private fun information(
+        icon: String,
+        title: String,
+        initial: String,
+        valueView: TextView,
+        color: Int
+    ): LinearLayout {
+
+        val box = card()
+
+        val row =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+        row.addView(
+            txt(
+                icon,
+                25f,
+                color,
+                true
+            ),
+            LinearLayout.LayoutParams(
+                dp(38),
+                LinearLayout.LayoutParams.MATCH_PARENT
+            )
+        )
+
+        val column =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+        column.addView(
+            txt(
+                title,
+                10f,
+                gray,
+                true
+            )
+        )
+
+        valueView.apply {
+
+            text = initial
+
+            textSize =
+                if (title == "TAKE PROFIT") {
+                    15f
+                } else {
+                    18f
+                }
+
+            setTextColor(white)
+            setTypeface(null, Typeface.BOLD)
+            maxLines = 3
+        }
+
+        column.addView(valueView)
+
+        row.addView(
+            column,
+            LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1f
+            )
+        )
+
+        box.addView(row)
+
+        return box
+    }
+
+    private fun buildTiming() {
+
+        val row =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
+
+        row.addView(
+            information(
+                "◷",
+                "TIMING",
+                "AGUARDAR",
+                timingView,
+                blue
+            ),
+            LinearLayout.LayoutParams(
+                0,
+                dp(82),
+                1f
+            ).apply {
+                marginEnd = dp(5)
+            }
+        )
+
+        row.addView(
+            information(
+                "▣",
+                "VALIDADE",
+                "--",
+                validityView,
+                blue
+            ),
+            LinearLayout.LayoutParams(
+                0,
+                dp(82),
+                1f
+            )
+        )
+
+        content.addView(row)
+        gap()
+    }
+
+    private fun buildConfidence() {
+
+        val box = card()
+
+        val row =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
+
+        row.addView(
+            confidence(
+                "PROBABILIDADE",
+                probabilityView,
+                blue
+            ),
+            LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1f
+            ).apply {
+                marginEnd = dp(5)
+            }
+        )
+
+        row.addView(
+            confidence(
+                "DETERMINISMO",
+                deterministicView,
+                purple
+            ),
+            LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1f
+            ).apply {
+                marginEnd = dp(5)
+            }
+        )
+
+        row.addView(
+            confidence(
+                "CONFLUÊNCIA MTF",
+                mtfView,
+                yellow
+            ),
+            LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1f
+            )
+        )
+
+        box.addView(row)
+
+        content.addView(
+            box,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(76)
+            )
+        )
+
+        gap()
+    }
+
+    private fun confidence(
+        title: String,
+        value: TextView,
+        color: Int
+    ): LinearLayout {
+
+        return LinearLayout(context).apply {
+
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_VERTICAL
+
+            addView(
+                txt(
+                    title,
+                    9f,
+                    gray,
+                    true
+                )
+            )
+
+            value.apply {
+
+                text = "--"
+                textSize = 19f
+                setTextColor(color)
+                setTypeface(null, Typeface.BOLD)
+            }
+
+            addView(value)
+        }
+    }
+
+    private fun buildIndicators() {
+
+        val box = card()
+
+        val row =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+            }
+
+        listOf(
+            "FI" to green,
+            "FSI" to blue,
+            "RSI" to purple,
+            "MACD" to cyan,
+            "EMA" to Color.rgb(255, 110, 50),
+            "ADX" to yellow
+        ).forEachIndexed { index, pair ->
+
+            val item =
+                IndicatorBar(
+                    context,
+                    pair.first,
+                    pair.second
+                )
+
+            row.addView(
+                item,
+                LinearLayout.LayoutParams(
+                    0,
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    1f
+                ).apply {
+
+                    if (index < 5) {
+                        marginEnd = dp(3)
+                    }
+                }
+            )
+        }
+
+        box.addView(row)
+
+        content.addView(
+            box,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                dp(76)
+            )
+        )
+
+        gap()
+    }
+
+    private fun buildDetailed() {
+
+        val box = card()
+
+        val header =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+            }
+
+        header.addView(
+            txt(
+                "◎",
+                30f,
+                cyan,
+                true
+            ),
+            LinearLayout.LayoutParams(
+                dp(48),
+                dp(48)
+            )
+        )
+
+        val title =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+
+        title.addView(
+            txt(
+                "ANÁLISE DETALHADA",
+                15f,
+                white,
+                true
+            )
+        )
+
+        title.addView(
+            txt(
+                "Veja todos os cálculos, indicadores e a calibração do motor.",
+                9f,
+                gray
+            )
+        )
+
+        header.addView(
+            title,
+            LinearLayout.LayoutParams(
+                0,
+                dp(50),
+                1f
+            )
+        )
+
+        header.addView(
+            txt(
+                "›",
+                34f,
+                gray
+            ).apply {
+
+                gravity = Gravity.CENTER
+
+                setOnClickListener {
+                    showDetailed()
+                }
+            },
+            LinearLayout.LayoutParams(
+                dp(42),
+                dp(50)
+            )
+        )
+
+        box.addView(header)
+
+        val names =
+            listOf(
+                "Calibração",
+                "Histórico",
+                "MTF",
+                "FSI",
+                "Fibonacci",
+                "RSI",
+                "MACD",
+                "EMA",
+                "ADX",
+                "Estrutura",
+                "Armadilha",
+                "Acumulação",
+                "Distribuição",
+                "Exaustão"
+            )
+
+        val grid =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+
+        names.chunked(5).forEachIndexed { rowIndex, chunk ->
+
+            val line =
+                LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                }
+
+            chunk.forEachIndexed { columnIndex, name ->
+
+                val index =
+                    rowIndex * 5 + columnIndex
+
+                val item =
+                    txt(
+                        "${iconFor(index)}\n$name",
+                        8f,
+                        white
+                    ).apply {
+
+                        gravity = Gravity.CENTER
+
+                        setPadding(
+                            dp(2),
+                            dp(5),
+                            dp(2),
+                            dp(5)
+                        )
+
+                        background =
+                            rounded(
+                                panel,
+                                border,
+                                10
+                            )
+                    }
+
+                line.addView(
+                    item,
+                    LinearLayout.LayoutParams(
+                        0,
+                        dp(62),
+                        1f
+                    ).apply {
+
+                        if (columnIndex < 4) {
+                            marginEnd = dp(4)
+                        }
+                    }
+                )
+            }
+
+            grid.addView(line)
+
+            if (rowIndex < 2) {
+                grid.addView(
+                    View(context),
+                    LinearLayout.LayoutParams(
+                        1,
+                        dp(4)
+                    )
                 )
             }
         }
+
+        box.addView(grid)
+
+        content.addView(box)
+        gap(8)
     }
 
-    private fun smallLabel(
-        value: String
-    ): TextView {
+    private fun iconFor(index: Int): String {
 
-        return label(
-            value,
-            8f,
-            true
-        ).apply {
-
-            setTextColor(
-                gray
-            )
+        return when (index) {
+            0 -> "☷"
+            1 -> "◴"
+            2 -> "▱"
+            3 -> "♣"
+            4 -> "↻"
+            5 -> "∿"
+            6 -> "▥"
+            7 -> "↗"
+            8 -> "▥"
+            9 -> "♧"
+            10 -> "⚠"
+            11 -> "▱"
+            12 -> "▱"
+            else -> "ϟ"
         }
     }
 
-    // =========================================================
-    // FORMAS
-    // =========================================================
+    private fun showDetailed() {
 
-    private fun rounded(
+        val message =
+            buildString {
 
-        color: Int,
+                append("MOTOR PROPRIETÁRIO\n\n")
+                append("DECISÃO: ")
+                append(decisionView.text)
+                append("\n")
+                append(totalView.text)
+                append("\n")
+                append(buyView.text)
+                append("\n")
+                append(sellView.text)
+                append("\n")
+                append(neutralView.text)
+                append("\n\n")
 
-        radius: Int
+                append("PROBABILIDADE: ")
+                append(probabilityView.text)
+                append("\n")
 
-    ): GradientDrawable {
+                append("DETERMINISMO: ")
+                append(deterministicView.text)
+                append("\n")
 
-        return GradientDrawable().apply {
+                append("MTF: ")
+                append(mtfView.text)
+                append("\n\n")
 
-            setColor(
-                color
+                append("ENTRADA: ")
+                append(entryView.text)
+                append("\n")
+
+                append("STOP: ")
+                append(stopView.text)
+                append("\n")
+
+                append(targetsView.text)
+                append("\n")
+
+                append("TIMING: ")
+                append(timingView.text)
+                append("\n")
+
+                append("VALIDADE: ")
+                append(validityView.text)
+            }
+
+        AlertDialog.Builder(context)
+            .setTitle("ANÁLISE DETALHADA")
+            .setMessage(message)
+            .setPositiveButton("FECHAR", null)
+            .show()
+    }
+
+    private fun buildBottomNavigation() {
+
+        val navigation =
+            LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER
+
+                setPadding(
+                    0,
+                    dp(8),
+                    0,
+                    dp(4)
+                )
+            }
+
+        listOf(
+            "⌂\nPrincipal",
+            "▥\nGráficos",
+            "▤\nAnálise Detalhada",
+            "⚙\nConfigurações"
+        ).forEachIndexed { index, label ->
+
+            val item =
+                txt(
+                    label,
+                    9f,
+                    if (index == 0) green else gray,
+                    index == 0
+                ).apply {
+
+                    gravity = Gravity.CENTER
+
+                    setPadding(
+                        dp(2),
+                        dp(6),
+                        dp(2),
+                        dp(6)
+                    )
+                }
+
+            navigation.addView(
+                item,
+                LinearLayout.LayoutParams(
+                    0,
+                    dp(58),
+                    1f
+                )
             )
-
-            cornerRadius =
-                dp(radius).toFloat()
         }
+
+        content.addView(navigation)
     }
-
-    // =========================================================
-    // PARÂMETROS
-    // =========================================================
-
-    private fun weightParams(
-
-        weight: Float
-
-    ): LinearLayout.LayoutParams {
-
-        return LinearLayout.LayoutParams(
-
-            0,
-
-            LinearLayout.LayoutParams.WRAP_CONTENT,
-
-            weight
-
-        ).apply {
-
-            setMargins(
-
-                dp(2),
-                dp(2),
-                dp(2),
-                dp(2)
-            )
-        }
-    }
-
-    private fun marginParams(
-
-        left: Int,
-
-        top: Int,
-
-        right: Int,
-
-        bottom: Int
-
-    ): LinearLayout.LayoutParams {
-
-        return LinearLayout.LayoutParams(
-
-            -1,
-
-            LinearLayout.LayoutParams.WRAP_CONTENT
-
-        ).apply {
-
-            setMargins(
-
-                dp(left),
-                dp(top),
-                dp(right),
-                dp(bottom)
-            )
-        }
-    }
-
-    private fun dp(
-        value: Int
-    ): Int {
-
-        return (
-
-            value *
-                resources
-                    .displayMetrics
-                    .density
-
-        ).toInt()
-    }
-
-    // =========================================================
-    // RELÓGIO
-    // =========================================================
 
     private fun startClock() {
 
-        post(
+        val handler =
+            android.os.Handler(
+                android.os.Looper.getMainLooper()
+            )
 
+        val runnable =
             object : Runnable {
 
                 override fun run() {
 
-                    val now =
-                        Date()
+                    val now = Date()
 
                     clockView.text =
-
                         "◷ " +
-
-                        SimpleDateFormat(
-
-                            "HH:mm:ss",
-
-                            Locale.getDefault()
-
-                        ).format(
-                            now
-                        )
+                            SimpleDateFormat(
+                                "HH:mm:ss",
+                                Locale.getDefault()
+                            ).format(now)
 
                     dateView.text =
-
                         "▣ " +
+                            SimpleDateFormat(
+                                "dd/MM/yyyy",
+                                Locale.getDefault()
+                            ).format(now)
 
-                        SimpleDateFormat(
-
-                            "dd/MM/yyyy",
-
-                            Locale.getDefault()
-
-                        ).format(
-                            now
-                        )
-
-                    postDelayed(
-
+                    handler.postDelayed(
                         this,
-
                         1000L
                     )
                 }
             }
-        )
+
+        handler.post(runnable)
     }
 
-    // =========================================================
-    // DIÁLOGOS
-    // =========================================================
-
-    private fun showDetailedMessage() {
-
-        AlertDialog.Builder(
-            context
-        )
-
-            .setTitle(
-                "ANÁLISE DETALHADA"
-            )
-
-            .setMessage(
-
-                detailedStatusView
-                    .text
-                    ?.toString()
-                    ?: "Aguardando dados reais."
-            )
-
-            .setPositiveButton(
-                "FECHAR",
-                null
-            )
-
-            .show()
-    }
-
-    private fun showModuleMessage(
-
-        module: String
-
+    fun setSelectionListeners(
+        marketChanged: (String) -> Unit,
+        assetChanged: (String) -> Unit,
+        timeframeChanged: (String) -> Unit
     ) {
 
-        AlertDialog.Builder(
-            context
-        )
-
-            .setTitle(
-                module
-            )
-
-            .setMessage(
-
-                "Este módulo apresenta os resultados produzidos pelo motor. Nenhum cálculo é criado pela interface."
-            )
-
-            .setPositiveButton(
-                "FECHAR",
-                null
-            )
-
-            .show()
+        onMarketChanged = marketChanged
+        onAssetChanged = assetChanged
+        onTimeframeChanged = timeframeChanged
     }
-
-    // =========================================================
-    // MÉTODOS PÚBLICOS
-    // =========================================================
 
     fun setOnline(
         online: Boolean
     ) {
 
         onlineView.text =
-
-            if (
-                online
-            ) {
-
+            if (online) {
                 "● ONLINE"
-
             } else {
-
                 "● OFFLINE"
             }
 
         onlineView.setTextColor(
-
-            if (
-                online
-            ) {
-
-                green
-
-            } else {
-
-                red
-            }
+            if (online) green else red
         )
     }
 
     fun setApi(
-        name: String
+        api: String
     ) {
 
         apiView.text =
-            "API: $name"
+            "API DE DADOS • $api"
     }
 
     fun setPrice(
@@ -2439,115 +1517,56 @@ class DopmDashboardView(
     }
 
     fun setDecision(
-
-        decision: String,
-
+        direction: String,
         total: Double
-
     ) {
 
-        decisionView.text =
-            decision
+        val shown =
+            when (direction) {
+                "COMPRA" -> "COMPRA"
+                "VENDA" -> "VENDA"
+                else -> "NEUTRO"
+            }
+
+        decisionView.text = shown
 
         totalView.text =
+            "TOTAL: ${format(total)}%"
 
-            "TOTAL: " +
-
-            "${"%.1f".format(total)}%"
-
-        decisionView.setTextColor(
-
-            when (
-                decision.uppercase()
-            ) {
-
-                "COMPRA" ->
-                    green
-
-                "VENDA" ->
-                    red
-
-                else ->
-                    white
+        val color =
+            when (shown) {
+                "COMPRA" -> green
+                "VENDA" -> red
+                else -> white
             }
-        )
+
+        decisionView.setTextColor(color)
 
         decisionIcon.text =
-
-            when (
-                decision.uppercase()
-            ) {
-
-                "COMPRA" ->
-                    "↗"
-
-                "VENDA" ->
-                    "↘"
-
-                else ->
-                    "→"
+            when (shown) {
+                "COMPRA" -> "↗"
+                "VENDA" -> "↘"
+                else -> "→"
             }
 
-        decisionIcon.background =
-
-            rounded(
-
-                when (
-                    decision.uppercase()
-                ) {
-
-                    "COMPRA" ->
-                        green
-
-                    "VENDA" ->
-                        red
-
-                    else ->
-                        Color.rgb(
-                            70,
-                            90,
-                            115
-                        )
-                },
-
-                16
-            )
-
-        totalCircle.setValue(
-
-            total,
-
-            decision
-        )
+        decisionCircle.value = total
+        decisionCircle.accent = color
     }
 
     fun setProbabilities(
-
         buy: Double,
-
         sell: Double,
-
         neutral: Double
-
     ) {
 
         buyView.text =
-
-            "● COMPRA   " +
-
-            "${"%.1f".format(buy)}%"
+            "● COMPRA   ${format(buy)}%"
 
         sellView.text =
-
-            "● VENDA    " +
-
-            "${"%.1f".format(sell)}%"
+            "● VENDA    ${format(sell)}%"
 
         neutralView.text =
-
-            "● NEUTRO   " +
-
-            "${"%.1f".format(neutral)}%"
+            "● NEUTRO   ${format(neutral)}%"
     }
 
     fun setProbability(
@@ -2555,8 +1574,7 @@ class DopmDashboardView(
     ) {
 
         probabilityView.text =
-
-            "${"%.1f".format(value)}%"
+            "${format(value)}%"
     }
 
     fun setDeterminism(
@@ -2564,8 +1582,7 @@ class DopmDashboardView(
     ) {
 
         deterministicView.text =
-
-            "${"%.1f".format(value)}%"
+            "${format(value)}%"
     }
 
     fun setMtf(
@@ -2573,480 +1590,282 @@ class DopmDashboardView(
     ) {
 
         mtfView.text =
+            "${format(value)}%"
+    }
 
-            "${"%.1f".format(value)}%"
+    fun setBestTimeframe(
+        value: String
+    ) {
+
+        bestTimeframeView.text = value
     }
 
     fun setTradePlan(
-
         entry: String,
-
         stop: String,
-
         tp1: String,
-
         tp2: String,
-
         tp3: String
-
     ) {
 
-        entryView.text =
-            entry
-
-        stopView.text =
-            stop
+        entryView.text = entry
+        stopView.text = stop
 
         targetsView.text =
-
             "TP1 $tp1\n" +
-
             "TP2 $tp2\n" +
-
             "TP3 $tp3"
     }
 
     fun setTiming(
-
         timing: String,
-
         validity: String
-
     ) {
 
-        timingView.text =
-            timing
-
-        validityView.text =
-            validity
+        timingView.text = timing
+        validityView.text = validity
     }
 
-    fun setBestTimeframe(
-
-        timeframe: String
-
-    ) {
-
-        bestTimeframeView.text =
-            timeframe
-    }
-
-    fun setIndicator(
-
-        name: String,
-
+    private fun format(
         value: Double
+    ): String {
 
-    ) {
-
-        indicatorViews[name]
-            ?.setValue(value)
-    }
-
-    fun setIndicators(
-
-        fi: Double,
-
-        fsi: Double,
-
-        rsi: Double,
-
-        macd: Double,
-
-        ema: Double,
-
-        adx: Double
-
-    ) {
-
-        setIndicator(
-            "FI",
-            fi
-        )
-
-        setIndicator(
-            "FSI",
-            fsi
-        )
-
-        setIndicator(
-            "RSI",
-            rsi
-        )
-
-        setIndicator(
-            "MACD",
-            macd
-        )
-
-        setIndicator(
-            "EMA",
-            ema
-        )
-
-        setIndicator(
-            "ADX",
-            adx
+        return String.format(
+            Locale.US,
+            "%.1f",
+            value
         )
     }
 
-    fun setDetailedStatus(
-        text: String
-    ) {
+    private class IndicatorBar(
+        context: Context,
+        private val name: String,
+        private val color: Int
+    ) : LinearLayout(context) {
 
-        detailedStatusView.text =
-            text
-    }
-}
+        private val valueView =
+            TextView(context)
 
-// =============================================================
-// INDICADOR
-// =============================================================
+        private val barView =
+            View(context)
 
-private class IndicatorItem(
+        init {
 
-    context: Context,
+            orientation =
+                LinearLayout.VERTICAL
 
-    private val name: String,
+            gravity =
+                Gravity.CENTER_VERTICAL
 
-    private val barColor: Int
-
-) : LinearLayout(context) {
-
-    private val valueView =
-        TextView(context)
-
-    private val progress =
-        ProgressBar(
-
-            context,
-
-            null,
-
-            android.R.attr
-                .progressBarStyleHorizontal
-        )
-
-    init {
-
-        orientation =
-            VERTICAL
-
-        gravity =
-            Gravity.CENTER
-
-        setPadding(
-            2,
-            3,
-            2,
-            3
-        )
-
-        addView(
-
-            TextView(context).apply {
-
-                text =
-                    name
-
-                textSize =
-                    8f
-
-                setTypeface(
-
-                    null,
-
-                    Typeface.BOLD
-                )
-
-                setTextColor(
-
-                    Color.rgb(
-                        180,
-                        195,
-                        220
-                    )
-                )
-            }
-        )
-
-        progress.max =
-            100
-
-        progress.progress =
-            0
-
-        addView(
-
-            progress,
-
-            LayoutParams(
-                dp(50),
-                dp(7)
-            )
-        )
-
-        valueView.text =
-            "--"
-
-        valueView.textSize =
-            10f
-
-        valueView.setTypeface(
-
-            null,
-
-            Typeface.BOLD
-        )
-
-        valueView.setTextColor(
-            barColor
-        )
-
-        addView(
-            valueView
-        )
-    }
-
-    fun setValue(
-        value: Double
-    ) {
-
-        val safe =
-            value.coerceIn(
-                0.0,
-                100.0
+            setPadding(
+                dp(2),
+                dp(2),
+                dp(2),
+                dp(2)
             )
 
-        progress.progress =
-            safe.toInt()
+            addView(
+                TextView(context).apply {
 
-        valueView.text =
+                    text = name
+                    textSize = 9f
+                    setTextColor(
+                        Color.rgb(
+                            165,
+                            185,
+                            215
+                        )
+                    )
 
-            "${"%.1f".format(safe)}%"
-    }
-
-    private fun dp(
-        value: Int
-    ): Int {
-
-        return (
-
-            value *
-                resources
-                    .displayMetrics
-                    .density
-
-        ).toInt()
-    }
-}
-
-// =============================================================
-// CÍRCULO DA DECISÃO
-// =============================================================
-
-private class DecisionCircleView(
-    context: Context
-) : View(context) {
-
-    private val paint =
-        Paint(
-            Paint.ANTI_ALIAS_FLAG
-        )
-
-    private var value =
-        0.0
-
-    private var direction =
-        "AGUARDAR"
-
-    fun setValue(
-
-        value: Double,
-
-        direction: String
-
-    ) {
-
-        this.value =
-
-            value.coerceIn(
-                0.0,
-                100.0
+                    setTypeface(
+                        null,
+                        Typeface.BOLD
+                    )
+                }
             )
 
-        this.direction =
-            direction
+            addView(
+                barView,
+                LayoutParams(
+                    LayoutParams.MATCH_PARENT,
+                    dp(7)
+                ).apply {
 
-        invalidate()
-    }
+                    topMargin = dp(4)
+                    bottomMargin = dp(3)
 
-    override fun onDraw(
-        canvas: Canvas
-    ) {
+                    background =
+                        GradientDrawable().apply {
 
-        super.onDraw(
-            canvas
-        )
+                            setColor(
+                                Color.rgb(
+                                    12,
+                                    58,
+                                    80
+                                )
+                            )
 
-        val cx =
-            width / 2f
-
-        val cy =
-            height / 2f
-
-        val radius =
-
-            minOf(
-                width,
-                height
-            ) / 2f - 10f
-
-        // -----------------------------------------------------
-        // CÍRCULO BASE
-        // -----------------------------------------------------
-
-        paint.style =
-            Paint.Style.STROKE
-
-        paint.strokeWidth =
-            8f
-
-        paint.color =
-
-            Color.rgb(
-                10,
-                55,
-                75
+                            cornerRadius =
+                                dp(4).toFloat()
+                        }
+                }
             )
 
-        canvas.drawCircle(
+            addView(
+                valueView.apply {
 
-            cx,
-            cy,
-            radius,
-            paint
-        )
+                    text = "--"
+                    textSize = 11f
+                    setTextColor(color)
 
-        // -----------------------------------------------------
-        // ARCO
-        // -----------------------------------------------------
+                    setTypeface(
+                        null,
+                        Typeface.BOLD
+                    )
+                }
+            )
+        }
 
-        paint.color =
+        private fun dp(
+            value: Int
+        ): Int {
 
-            when (
-                direction.uppercase()
-            ) {
+            return (
+                value *
+                    resources.displayMetrics.density
+                ).toInt()
+        }
+    }
 
-                "COMPRA" ->
+    private class DecisionCircle(
+        context: Context
+    ) : View(context) {
 
-                    Color.rgb(
-                        0,
-                        235,
-                        125
+        var value: Double = 0.0
+            set(newValue) {
+
+                field =
+                    newValue.coerceIn(
+                        0.0,
+                        100.0
                     )
 
-                "VENDA" ->
-
-                    Color.rgb(
-                        255,
-                        65,
-                        75
-                    )
-
-                else ->
-
-                    Color.rgb(
-                        120,
-                        145,
-                        175
-                    )
+                invalidate()
             }
 
-        val rect =
+        var accent: Int = Color.WHITE
+            set(newValue) {
 
-            android.graphics.RectF(
+                field = newValue
+                invalidate()
+            }
 
-                cx - radius,
-
-                cy - radius,
-
-                cx + radius,
-
-                cy + radius
+        private val paint =
+            Paint(
+                Paint.ANTI_ALIAS_FLAG
             )
 
-        canvas.drawArc(
+        override fun onDraw(
+            canvas: Canvas
+        ) {
 
-            rect,
+            super.onDraw(canvas)
 
-            -90f,
+            val centerX =
+                width / 2f
 
-            360f *
-                value.toFloat() /
-                100f,
+            val centerY =
+                height / 2f
 
-            false,
+            val radius =
+                minOf(
+                    width,
+                    height
+                ) / 2f -
+                    dp(8)
 
-            paint
-        )
+            paint.style =
+                Paint.Style.STROKE
 
-        // -----------------------------------------------------
-        // TEXTO
-        // -----------------------------------------------------
+            paint.strokeWidth =
+                dp(8).toFloat()
 
-        paint.style =
-            Paint.Style.FILL
+            paint.color =
+                Color.rgb(
+                    12,
+                    58,
+                    80
+                )
 
-        paint.textAlign =
-            Paint.Align.CENTER
-
-        paint.typeface =
-
-            Typeface.create(
-
-                Typeface.DEFAULT,
-
-                Typeface.BOLD
+            canvas.drawCircle(
+                centerX,
+                centerY,
+                radius,
+                paint
             )
 
-        paint.textSize =
-            18f
+            paint.color = accent
 
-        paint.color =
-            Color.WHITE
-
-        canvas.drawText(
-
-            "${"%.1f".format(value)}%",
-
-            cx,
-
-            cy + 2f,
-
-            paint
-        )
-
-        paint.textSize =
-            9f
-
-        paint.color =
-
-            Color.rgb(
-                175,
-                195,
-                220
+            canvas.drawArc(
+                centerX - radius,
+                centerY - radius,
+                centerX + radius,
+                centerY + radius,
+                -90f,
+                360f *
+                    (value / 100f)
+                    .toFloat(),
+                false,
+                paint
             )
 
-        canvas.drawText(
+            paint.style =
+                Paint.Style.FILL
 
-            "TOTAL",
+            paint.color = Color.WHITE
+            paint.textAlign =
+                Paint.Align.CENTER
 
-            cx,
+            paint.textSize =
+                dp(17).toFloat()
 
-            cy + 18f,
+            canvas.drawText(
+                String.format(
+                    Locale.US,
+                    "%.1f%%",
+                    value
+                ),
+                centerX,
+                centerY + dp(5),
+                paint
+            )
 
-            paint
-        )
+            paint.textSize =
+                dp(9).toFloat()
+
+            paint.color =
+                Color.rgb(
+                    165,
+                    185,
+                    215
+                )
+
+            canvas.drawText(
+                "TOTAL",
+                centerX,
+                centerY + dp(22),
+                paint
+            )
+        }
+
+        private fun dp(
+            value: Int
+        ): Int {
+
+            return (
+                value *
+                    resources.displayMetrics.density
+                ).toInt()
+        }
     }
 }
