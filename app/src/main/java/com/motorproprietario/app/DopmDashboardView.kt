@@ -108,84 +108,84 @@ class DopmDashboardView(
     private val timeframeSpinner =
         Spinner(context)
 
-        private var onMarketChanged:
-    ((String) -> Unit)? = null
+    private var onMarketChanged:
+        ((String) -> Unit)? = null
 
-private var onAssetChanged:
-    ((String) -> Unit)? = null
+    private var onAssetChanged:
+        ((String) -> Unit)? = null
 
-private var onTimeframeChanged:
-    ((String) -> Unit)? = null
+    private var onTimeframeChanged:
+        ((String) -> Unit)? = null
 
-fun setSelectionListeners(
-    marketChanged: (String) -> Unit,
-    assetChanged: (String) -> Unit,
-    timeframeChanged: (String) -> Unit
-) {
-    onMarketChanged = marketChanged
-    onAssetChanged = assetChanged
-    onTimeframeChanged = timeframeChanged
+    fun setSelectionListeners(
+        marketChanged: (String) -> Unit,
+        assetChanged: (String) -> Unit,
+        timeframeChanged: (String) -> Unit
+    ) {
+        onMarketChanged = marketChanged
+        onAssetChanged = assetChanged
+        onTimeframeChanged = timeframeChanged
 
-    marketSpinner.onItemSelectedListener =
-        object : AdapterView.OnItemSelectedListener {
+        marketSpinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
 
-            override fun onNothingSelected(
-                parent: AdapterView<*>?
-            ) {
+                override fun onNothingSelected(
+                    parent: AdapterView<*>?
+                ) {
+                }
+
+                override fun onItemSelected(
+                    parent: AdapterView<*>?,
+                    view: View?,
+                    position: Int,
+                    id: Long
+                ) {
+                    onMarketChanged?.invoke(
+                        marketSpinner.selectedItem.toString()
+                    )
+                }
             }
 
-            override fun onItemSelected(
-                parent: AdapterView<*>?,
-                view: View?,
-                position: Int,
-                id: Long
-            ) {
-                onMarketChanged?.invoke(
-                    marketSpinner.selectedItem.toString()
-                )
-            }
-        }
+        assetSpinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
 
-    assetSpinner.onItemSelectedListener =
-        object : AdapterView.OnItemSelectedListener {
+                override fun onNothingSelected(
+                    parent: AdapterView<*>?
+                ) {
+                }
 
-            override fun onNothingSelected(
-                parent: AdapterView<*>?
-            ) {
-            }
-
-            override fun onItemSelected(
-                parent: AdapterView<*>?,
-                view: View?,
-                position: Int,
-                id: Long
-            ) {
-                onAssetChanged?.invoke(
-                    assetSpinner.selectedItem.toString()
-                )
-            }
-        }
-
-    timeframeSpinner.onItemSelectedListener =
-        object : AdapterView.OnItemSelectedListener {
-
-            override fun onNothingSelected(
-                parent: AdapterView<*>?
-            ) {
+                override fun onItemSelected(
+                    parent: AdapterView<*>?,
+                    view: View?,
+                    position: Int,
+                    id: Long
+                ) {
+                    onAssetChanged?.invoke(
+                        assetSpinner.selectedItem.toString()
+                    )
+                }
             }
 
-            override fun onItemSelected(
-                parent: AdapterView<*>?,
-                view: View?,
-                position: Int,
-                id: Long
-            ) {
-                onTimeframeChanged?.invoke(
-                    timeframeSpinner.selectedItem.toString()
-                )
+        timeframeSpinner.onItemSelectedListener =
+            object : AdapterView.OnItemSelectedListener {
+
+                override fun onNothingSelected(
+                    parent: AdapterView<*>?
+                ) {
+                }
+
+                override fun onItemSelected(
+                    parent: AdapterView<*>?,
+                    view: View?,
+                    position: Int,
+                    id: Long
+                ) {
+                    onTimeframeChanged?.invoke(
+                        timeframeSpinner.selectedItem.toString()
+                    )
+                }
             }
-        }
-}
+    }
 
     init {
 
@@ -1561,6 +1561,24 @@ fun setSelectionListeners(
                         sell,
                         neutral
                     )
+                )
+            }%"
+    }
+
+    /**
+     * Recebe a probabilidade consolidada
+     * diretamente do Motor Probabilístico.
+     *
+     * Não calcula nem cria valores.
+     */
+    fun setProbability(
+        value: Double
+    ) {
+
+        probabilityView.text =
+            "${
+                "%.1f".format(
+                    value
                 )
             }%"
     }
