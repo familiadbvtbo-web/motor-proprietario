@@ -693,6 +693,63 @@ class MainActivity : AppCompatActivity() {
             now
     )
 
+    /*
+ * ============================================================
+ * FSI EFETIVO DO MOTOR PROPRIETÁRIO
+ * ============================================================
+ *
+ * Combina:
+ *
+ * 1. FSI atual do mercado
+ * 2. Pressão histórica de captura
+ * 3. Pressão histórica de realização
+ *
+ * O histórico só interfere depois de existir
+ * quantidade mínima de amostras.
+ */
+val historicalStats =
+    deterministicHistoryEngine.statistics(
+
+        symbol =
+            selectedAsset,
+
+        timeframe =
+            bestTimeframe,
+
+        stage =
+            sequenceStage.name,
+
+        metrics =
+            bestMetrics,
+
+        direction =
+            bestDeterministic.directionalBias
+    )
+
+val effectiveFsi =
+    if (
+        historicalStats.samples < 3
+    ) {
+
+        realtime.fsi
+
+    } else {
+
+        (
+            realtime.fsi * 0.65 +
+
+            historicalStats.capturePressure *
+                0.20 +
+
+            historicalStats.realizationPressure *
+                0.15
+
+        ).coerceIn(
+            0.0,
+            100.0
+        )
+    }
+
                 /*
                  * ==================================================
                  * PROBABILIDADE DO MELHOR TIMEFRAME
@@ -710,7 +767,8 @@ class MainActivity : AppCompatActivity() {
                                 realtime.mtfConfluence,
 
                             falseSignalRisk =
-                                realtime.fsi,
+                                  effectiveFsi,
+
 
                             fibonacciBullish =
                                 fibonacciEvidence(
@@ -737,16 +795,16 @@ class MainActivity : AppCompatActivity() {
                     )
 
                 val bestFinal =
-                    combineFinalProbabilities(
+    combineFinalProbabilities(
 
-                        bestProbability,
+        bestProbability,
 
-                        bestDeterministic,
+        bestDeterministic,
 
-                        realtime.fsi,
+        effectiveFsi,
 
-                        realtime.mtfConfluence
-                    )
+        realtime.mtfConfluence
+    )
 
                 /*
                  * ==================================================
@@ -790,7 +848,7 @@ class MainActivity : AppCompatActivity() {
                                 bestDeterministic.confidence,
 
                             falseSignalRisk =
-                                realtime.fsi,
+                                  effectiveFsi,
 
                             now =
                                 now
@@ -841,10 +899,10 @@ class MainActivity : AppCompatActivity() {
                                 },
 
                             invalidated =
-                                realtime.fsi >=
-                                    80.0 ||
-                                realtime.market.dataQuality !=
-                                    "GOOD"
+    effectiveFsi >=
+        80.0 ||
+    realtime.market.dataQuality !=
+        "GOOD"
                         )
                     )
 
