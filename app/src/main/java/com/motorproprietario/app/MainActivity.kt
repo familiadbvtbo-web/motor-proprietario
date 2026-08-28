@@ -1986,6 +1986,9 @@ val effectiveFsi =
 
         realtime:
             RealtimeAnalysis,
+        
+            effectiveFsi:
+        Double,
 
         deterministic:
             DeterministicResult,
