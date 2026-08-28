@@ -1439,7 +1439,7 @@ if (
                             timeframe,
 
                         outputSize =
-                            200
+                            1000
                     )
 
              if (
