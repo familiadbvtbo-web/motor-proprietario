@@ -11,9 +11,9 @@ data class HistoricalDeterminism(
     val samples: Int,
     val wins: Int,
     val falseSignals: Int,
-    val consecutiveFalseSignals: Int = 0,
-    val capturePressure: Double = 0.0,
-    val realizationPressure: Double = 0.0
+    val consecutiveFalseSignals: Int,
+    val capturePressure: Double,
+    val realizationPressure: Double
 )
 
 private data class PendingSignal(
@@ -23,13 +23,6 @@ private data class PendingSignal(
     val atr: Double,
     val createdAt: Long,
     val expiryAt: Long
-)
-
-private data class HistoryState(
-    val wins: Int,
-    val falseSignals: Int,
-    val consecutiveFalseSignals: Int,
-    val realizationEvents: Int
 )
 
 class DeterministicHistoryEngine(
@@ -72,13 +65,26 @@ class DeterministicHistoryEngine(
             timeframe.uppercase()
         ) {
 
-            "M1" -> 60_000L
-            "M5" -> 300_000L
-            "M15" -> 900_000L
-            "M30" -> 1_800_000L
-            "H1" -> 3_600_000L
-            "H4" -> 14_400_000L
-            "D1" -> 86_400_000L
+            "M1" ->
+                60_000L
+
+            "M5" ->
+                300_000L
+
+            "M15" ->
+                900_000L
+
+            "M30" ->
+                1_800_000L
+
+            "H1" ->
+                3_600_000L
+
+            "H4" ->
+                14_400_000L
+
+            "D1" ->
+                86_400_000L
 
             else ->
                 900_000L
@@ -89,8 +95,11 @@ class DeterministicHistoryEngine(
      * ============================================================
      * ASSINATURA DO CONTEXTO
      * ============================================================
+     *
+     * O histórico não memoriza somente COMPRA/VENDA.
+     *
+     * Memoriza o contexto em que o sinal apareceu.
      */
-
     private fun buildHistoryKey(
         symbol: String,
         timeframe: String,
@@ -209,138 +218,123 @@ class DeterministicHistoryEngine(
         ).joinToString("|")
     }
 
-    /*
-     * ============================================================
-     * HISTÓRICO
-     * ============================================================
-     */
-
     private fun wins(
         key: String
-    ): Int =
-        preferences.getInt(
+    ): Int {
+
+        return preferences.getInt(
             "$key.wins",
             0
         )
+    }
 
     private fun falseSignals(
         key: String
-    ): Int =
-        preferences.getInt(
+    ): Int {
+
+        return preferences.getInt(
             "$key.false",
             0
-        )
-
-    private fun consecutiveFalseSignals(
-        key: String
-    ): Int =
-        preferences.getInt(
-            "$key.consecutive_false",
-            0
-        )
-
-    private fun realizationEvents(
-        key: String
-    ): Int =
-        preferences.getInt(
-            "$key.realizations",
-            0
-        )
-
-    private fun readState(
-        key: String
-    ): HistoryState {
-
-        return HistoryState(
-
-            wins =
-                wins(key),
-
-            falseSignals =
-                falseSignals(key),
-
-            consecutiveFalseSignals =
-                consecutiveFalseSignals(key),
-
-            realizationEvents =
-                realizationEvents(key)
         )
     }
 
     /*
      * ============================================================
-     * REGISTRO DE RESULTADO
+     * NOVO:
+     * HISTÓRICO DE FALSOS CONSECUTIVOS
+     * ============================================================
+     *
+     * A sequência representa quantos falsos sinais ocorreram
+     * consecutivamente naquele contexto.
+     *
+     * Exemplo:
+     *
+     * falso → 1
+     * falso → 2
+     * falso → 3
+     *
+     * Um acerto quebra a sequência.
+     */
+    private fun consecutiveFalseSignals(
+        key: String
+    ): Int {
+
+        return preferences.getInt(
+            "$key.consecutiveFalse",
+            0
+        )
+    }
+
+    /*
+     * ============================================================
+     * NOVO:
+     * MAIOR SEQUÊNCIA HISTÓRICA
      * ============================================================
      */
+    private fun maxConsecutiveFalseSignals(
+        key: String
+    ): Int {
+
+        return preferences.getInt(
+            "$key.maxConsecutiveFalse",
+            0
+        )
+    }
 
     private fun registerResult(
         key: String,
         success: Boolean
     ) {
 
-        val state =
-            readState(key)
+        val currentWins =
+            wins(key)
 
-        val newWins =
-            if (success) {
-                state.wins + 1
-            } else {
-                state.wins
-            }
+        val currentFalse =
+            falseSignals(key)
 
-        val newFalse =
-            if (!success) {
-                state.falseSignals + 1
-            } else {
-                state.falseSignals
-            }
+        val currentConsecutive =
+            consecutiveFalseSignals(key)
 
-        val newConsecutiveFalse =
+        val currentMax =
+            maxConsecutiveFalseSignals(key)
+
+        val newConsecutive =
             if (success) {
                 0
             } else {
-                state.consecutiveFalseSignals + 1
+                currentConsecutive + 1
             }
+
+        val newMax =
+            max(
+                currentMax,
+                newConsecutive
+            )
 
         preferences.edit()
             .putInt(
                 "$key.wins",
-                newWins
+                if (success) {
+                    currentWins + 1
+                } else {
+                    currentWins
+                }
             )
             .putInt(
                 "$key.false",
-                newFalse
+                if (!success) {
+                    currentFalse + 1
+                } else {
+                    currentFalse
+                }
             )
             .putInt(
-                "$key.consecutive_false",
-                newConsecutiveFalse
+                "$key.consecutiveFalse",
+                newConsecutive
             )
-            .apply()
-    }
-
-    /*
-     * ============================================================
-     * REGISTRO DE REALIZAÇÃO
-     * ============================================================
-     *
-     * Uma realização é registrada quando existe falso sinal
-     * seguido de movimento posterior significativo.
-     *
-     * Não é tratada como previsão.
-     * É apenas memória estatística do comportamento observado.
-     */
-
-    private fun registerRealization(
-        key: String
-    ) {
-
-        val current =
-            realizationEvents(key)
-
-        preferences.edit()
             .putInt(
-                "$key.realizations",
-                current + 1
+                "$key.maxConsecutiveFalse",
+                newMax
             )
             .apply()
     }
@@ -349,8 +343,9 @@ class DeterministicHistoryEngine(
      * ============================================================
      * AVALIAÇÃO DOS SINAIS PENDENTES
      * ============================================================
+     *
+     * Usa somente preço real recebido posteriormente.
      */
-
     private fun evaluatePendingSignals(
         currentPrice: Double,
         now: Long
@@ -386,7 +381,6 @@ class DeterministicHistoryEngine(
             if (
                 threshold <= 0.0
             ) {
-
                 iterator.remove()
                 continue
             }
@@ -421,9 +415,6 @@ class DeterministicHistoryEngine(
                         threshold
                 }
 
-            /*
-             * Sinal funcionou.
-             */
             if (
                 favorable
             ) {
@@ -435,38 +426,9 @@ class DeterministicHistoryEngine(
 
                 iterator.remove()
 
-                continue
-            }
-
-            /*
-             * Movimento contrário.
-             */
-            if (
-                adverse
-            ) {
-
-                registerResult(
-                    signal.historyKey,
-                    false
-                )
-
-                /*
-                 * O evento de falso sinal pode alimentar
-                 * a memória de realização posteriormente.
-                 *
-                 * Aqui registramos apenas o evento observado.
-                 */
-                iterator.remove()
-
-                continue
-            }
-
-            /*
-             * Expiração sem confirmação.
-             */
-            if (
-                now >=
-                signal.expiryAt
+            } else if (
+                adverse ||
+                now >= signal.expiryAt
             ) {
 
                 registerResult(
@@ -481,86 +443,50 @@ class DeterministicHistoryEngine(
 
     /*
      * ============================================================
-     * CÁLCULO DA PRESSÃO DE CAPTURA
+     * PRESSÃO DE CAPTURA
      * ============================================================
      *
-     * Este é o novo diferencial.
+     * Não assume intenção institucional.
      *
-     * Não usamos simplesmente:
-     *
-     * FSI alto = armadilha
-     *
-     * Agora:
-     *
-     * falsos sinais históricos
-     * + repetição
-     * + contexto
-     * = pressão histórica de captura
+     * Mede se o histórico apresenta repetição suficiente
+     * de sinais que falharam para justificar cautela.
      */
-
     private fun calculateCapturePressure(
-        state: HistoryState
+        samples: Int,
+        falseSignals: Int,
+        consecutiveFalse: Int,
+        maxConsecutive: Int
     ): Double {
 
-        val samples =
-            state.wins +
-                state.falseSignals
-
         if (
-            samples < 3
+            samples <= 0
         ) {
             return 0.0
         }
 
         val falseRate =
-            state.falseSignals.toDouble() /
+            falseSignals.toDouble() /
                 samples.toDouble() *
                 100.0
 
-        /*
-         * Crescimento da penalização conforme
-         * os falsos sinais se repetem.
-         */
-        val sequencePressure =
-            when {
-
-                state.consecutiveFalseSignals >= 6 ->
-                    100.0
-
-                state.consecutiveFalseSignals >= 5 ->
-                    90.0
-
-                state.consecutiveFalseSignals >= 4 ->
-                    75.0
-
-                state.consecutiveFalseSignals >= 3 ->
-                    60.0
-
-                state.consecutiveFalseSignals >= 2 ->
-                    35.0
-
-                else ->
-                    0.0
-            }
-
-        /*
-         * Peso de amostra.
-         *
-         * Com 3 eventos não confiamos completamente.
-         * O peso cresce até 1.0 em 20 eventos.
-         */
-        val sampleWeight =
+        val currentSequencePressure =
             min(
-                1.0,
-                samples / 20.0
+                100.0,
+                consecutiveFalse *
+                    20.0
+            )
+
+        val historicalSequencePressure =
+            min(
+                100.0,
+                maxConsecutive *
+                    12.0
             )
 
         return clamp(
-            (
-                falseRate * 0.65 +
-                    sequencePressure * 0.35
-            ) *
-                sampleWeight
+            falseRate * 0.45 +
+            currentSequencePressure * 0.35 +
+            historicalSequencePressure * 0.20
         )
     }
 
@@ -568,38 +494,42 @@ class DeterministicHistoryEngine(
      * ============================================================
      * PRESSÃO DE REALIZAÇÃO
      * ============================================================
+     *
+     * Surge quando existe histórico ruim + sequência de falsos.
+     *
+     * Não significa que uma realização irá obrigatoriamente ocorrer.
      */
-
     private fun calculateRealizationPressure(
-        state: HistoryState
+        trapPressure: Double,
+        falseSignals: Int,
+        samples: Int,
+        consecutiveFalse: Int
     ): Double {
 
-        val samples =
-            state.wins +
-                state.falseSignals
-
         if (
-            samples < 5 ||
-            state.realizationEvents <= 0
+            samples <= 0
         ) {
             return 0.0
         }
 
-        val realizationRate =
-            state.realizationEvents.toDouble() /
+        val falseRate =
+            falseSignals.toDouble() /
                 samples.toDouble() *
                 100.0
 
+        val sequenceFactor =
+            min(
+                100.0,
+                consecutiveFalse *
+                    25.0
+            )
+
         return clamp(
-            realizationRate
+            trapPressure * 0.45 +
+            falseRate * 0.25 +
+            sequenceFactor * 0.30
         )
     }
-
-    /*
-     * ============================================================
-     * APLICA HISTÓRICO AO DETERMINISMO
-     * ============================================================
-     */
 
     fun apply(
         symbol: String,
@@ -669,11 +599,9 @@ class DeterministicHistoryEngine(
                 spacing
 
         /*
-         * ========================================================
-         * REGISTRO DE NOVA OBSERVAÇÃO
-         * ========================================================
+         * Registra o sinal somente quando existe
+         * confiança mínima.
          */
-
         if (
             !tooSoon &&
             deterministic.confidence >= 55.0
@@ -687,7 +615,6 @@ class DeterministicHistoryEngine(
 
             pendingSignals.add(
                 PendingSignal(
-
                     historyKey =
                         key,
 
@@ -715,73 +642,117 @@ class DeterministicHistoryEngine(
                 now
         }
 
-        val state =
-            readState(key)
+        val currentWins =
+            wins(key)
+
+        val currentFalse =
+            falseSignals(key)
 
         val samples =
-            state.wins +
-                state.falseSignals
+            currentWins +
+                currentFalse
+
+        val consecutiveFalse =
+            consecutiveFalseSignals(key)
+
+        val maxConsecutive =
+            maxConsecutiveFalseSignals(key)
 
         /*
-         * ========================================================
-         * SEM HISTÓRICO
-         * ========================================================
+         * --------------------------------------------------------
+         * Sem histórico suficiente:
+         * não altera o motor original.
+         * --------------------------------------------------------
          */
-
         if (
             samples < 3
         ) {
-
             return deterministic
         }
 
         /*
-         * ========================================================
-         * CONFIABILIDADE
-         * ========================================================
+         * --------------------------------------------------------
+         * CONFIABILIDADE HISTÓRICA
+         * --------------------------------------------------------
+         *
+         * Suavização para impedir que poucas amostras
+         * dominem o motor.
          */
-
         val reliability =
             (
-                state.wins + 1.0
+                currentWins + 1.0
             ) /
                 (
                     samples + 2.0
                 ) *
                 100.0
 
-        /*
-         * ========================================================
-         * CAPTURE PRESSURE
-         * ========================================================
-         */
-
-        val capturePressure =
-            calculateCapturePressure(
-                state
+        val historicalTrap =
+            clamp(
+                100.0 -
+                    reliability
             )
-
-        /*
-         * ========================================================
-         * REALIZATION PRESSURE
-         * ========================================================
-         */
-
-        val realizationPressure =
-            calculateRealizationPressure(
-                state
-            )
-
-        /*
-         * ========================================================
-         * PESO HISTÓRICO
-         * ========================================================
-         */
 
         val historicalWeight =
             min(
                 1.0,
-                samples / 20.0
+                samples /
+                    20.0
+            )
+
+        /*
+         * --------------------------------------------------------
+         * CAPTURA HISTÓRICA
+         * --------------------------------------------------------
+         */
+        val capturePressure =
+            calculateCapturePressure(
+                samples =
+                    samples,
+
+                falseSignals =
+                    currentFalse,
+
+                consecutiveFalse =
+                    consecutiveFalse,
+
+                maxConsecutive =
+                    maxConsecutive
+            )
+
+        /*
+         * A pressão histórica é combinada com
+         * a força de utilização do histórico.
+         */
+        val trapPressure =
+            clamp(
+                max(
+                    historicalTrap *
+                        historicalWeight,
+
+                    capturePressure *
+                        historicalWeight
+                )
+            )
+
+        /*
+         * --------------------------------------------------------
+         * REALIZAÇÃO
+         * --------------------------------------------------------
+         */
+        val realizationPressure =
+            calculateRealizationPressure(
+                trapPressure =
+                    trapPressure,
+
+                falseSignals =
+                    currentFalse,
+
+                samples =
+                    samples,
+
+                consecutiveFalse =
+                    consecutiveFalse
             )
 
         var buy =
@@ -794,25 +765,23 @@ class DeterministicHistoryEngine(
             deterministic.neutralScore
 
         /*
-         * ========================================================
-         * AMBIENTE DE CAPTURA
-         * ========================================================
+         * --------------------------------------------------------
+         * HISTÓRICO RUIM
+         * --------------------------------------------------------
+         *
+         * Quanto maior a pressão de captura,
+         * menor a força direcional.
          */
-
         if (
-            capturePressure >= 50.0
+            trapPressure > 50.0
         ) {
 
-            /*
-             * Quanto maior a pressão de captura,
-             * menor a confiança direcional.
-             */
             val penalty =
                 (
-                    capturePressure -
+                    trapPressure -
                         50.0
                 ) *
-                    0.40
+                    0.30
 
             val factor =
                 (
@@ -820,7 +789,7 @@ class DeterministicHistoryEngine(
                         penalty /
                         100.0
                 ).coerceIn(
-                    0.35,
+                    0.45,
                     1.0
                 )
 
@@ -832,20 +801,25 @@ class DeterministicHistoryEngine(
 
             neutral +=
                 penalty
+        }
 
-        } else {
+        /*
+         * --------------------------------------------------------
+         * HISTÓRICO FAVORÁVEL
+         * --------------------------------------------------------
+         *
+         * Reforço pequeno.
+         *
+         * Nunca transforma histórico em garantia.
+         */
+        else {
 
-            /*
-             * Histórico favorável gera apenas
-             * pequeno reforço.
-             */
             val reinforcement =
                 (
                     50.0 -
-                        capturePressure
+                        trapPressure
                 ) *
-                    0.08 *
-                    historicalWeight
+                    0.08
 
             if (
                 direction ==
@@ -863,19 +837,18 @@ class DeterministicHistoryEngine(
         }
 
         /*
-         * ========================================================
-         * REALIZAÇÃO
-         * ========================================================
+         * --------------------------------------------------------
+         * PRESSÃO DE REALIZAÇÃO
+         * --------------------------------------------------------
          *
-         * A realização não cria COMPRA/VENDA.
-         * Ela aumenta cautela quando o histórico mostra
-         * que falsos sinais costumam anteceder movimentos
-         * posteriores.
+         * Quando o histórico sugere ambiente de captura,
+         * aumenta neutralidade.
+         *
+         * Não cria uma nova direção artificial.
          */
-
         if (
-            realizationPressure >= 60.0 &&
-            capturePressure >= 50.0
+            realizationPressure >=
+                60.0
         ) {
 
             val realizationPenalty =
@@ -885,35 +858,9 @@ class DeterministicHistoryEngine(
                 ) *
                     0.20
 
-            buy *=
-                (
-                    1.0 -
-                        realizationPenalty /
-                        100.0
-                ).coerceIn(
-                    0.60,
-                    1.0
-                )
-
-            sell *=
-                (
-                    1.0 -
-                        realizationPenalty /
-                        100.0
-                ).coerceIn(
-                    0.60,
-                    1.0
-                )
-
             neutral +=
                 realizationPenalty
         }
-
-        /*
-         * ========================================================
-         * NORMALIZAÇÃO
-         * ========================================================
-         */
 
         val total =
             buy +
@@ -923,7 +870,6 @@ class DeterministicHistoryEngine(
         if (
             total <= 0.0
         ) {
-
             return deterministic
         }
 
@@ -943,14 +889,12 @@ class DeterministicHistoryEngine(
                 100.0
 
         /*
-         * ========================================================
-         * CONFIANÇA FINAL
-         * ========================================================
+         * --------------------------------------------------------
+         * CONFIANÇA
+         * --------------------------------------------------------
          */
-
         val confidence =
             clamp(
-
                 deterministic.confidence +
 
                     (
@@ -960,43 +904,31 @@ class DeterministicHistoryEngine(
                         0.20 *
                         historicalWeight -
 
-                    capturePressure *
-                        0.12 +
+                    trapPressure *
+                        0.08 -
 
-                    if (
-                        realizationPressure >=
-                        60.0
-                    ) {
-                        -5.0
-                    } else {
-                        0.0
-                    }
+                    realizationPressure *
+                        0.05
             )
 
         /*
-         * ========================================================
-         * TRAP RISK FINAL
-         * ========================================================
+         * --------------------------------------------------------
+         * RISCO FINAL DE ARMADILHA
+         * --------------------------------------------------------
          */
-
         val finalTrapRisk =
             clamp(
-
                 deterministic.trapRisk *
                     0.55 +
 
-                    capturePressure *
-                    0.30 +
+                historicalTrap *
+                    historicalWeight *
+                    0.20 +
 
-                    realizationPressure *
-                    0.15
+                capturePressure *
+                    historicalWeight *
+                    0.25
             )
-
-        /*
-         * ========================================================
-         * DIREÇÃO
-         * ========================================================
-         */
 
         val finalDirection =
             when {
@@ -1043,10 +975,11 @@ class DeterministicHistoryEngine(
 
     /*
      * ============================================================
-     * ESTATÍSTICAS PARA A INTERFACE
+     * ESTATÍSTICAS
      * ============================================================
+     *
+     * Usadas pelo MainActivity para a análise detalhada.
      */
-
     fun statistics(
         symbol: String,
         timeframe: String,
@@ -1073,12 +1006,21 @@ class DeterministicHistoryEngine(
                     stage
             )
 
-        val state =
-            readState(key)
+        val currentWins =
+            wins(key)
+
+        val currentFalse =
+            falseSignals(key)
 
         val samples =
-            state.wins +
-                state.falseSignals
+            currentWins +
+                currentFalse
+
+        val consecutiveFalse =
+            consecutiveFalseSignals(key)
+
+        val maxConsecutive =
+            maxConsecutiveFalseSignals(key)
 
         if (
             samples == 0
@@ -1090,7 +1032,7 @@ class DeterministicHistoryEngine(
                     50.0,
 
                 trapRisk =
-                    0.0,
+                    50.0,
 
                 samples =
                     0,
@@ -1114,36 +1056,47 @@ class DeterministicHistoryEngine(
 
         val reliability =
             (
-                state.wins + 1.0
+                currentWins + 1.0
             ) /
                 (
                     samples + 2.0
                 ) *
                 100.0
 
+        val historicalTrap =
+            clamp(
+                100.0 -
+                    reliability
+            )
+
         val capturePressure =
             calculateCapturePressure(
-                state
+                samples =
+                    samples,
+
+                falseSignals =
+                    currentFalse,
+
+                consecutiveFalse =
+                    consecutiveFalse,
+
+                maxConsecutive =
+                    maxConsecutive
             )
 
         val realizationPressure =
             calculateRealizationPressure(
-                state
-            )
+                trapPressure =
+                    capturePressure,
 
-        val trapRisk =
-            clamp(
+                falseSignals =
+                    currentFalse,
 
-                reliability.let {
-                    100.0 - it
-                } *
-                    0.55 +
+                samples =
+                    samples,
 
-                    capturePressure *
-                    0.30 +
-
-                    realizationPressure *
-                    0.15
+                consecutiveFalse =
+                    consecutiveFalse
             )
 
         return HistoricalDeterminism(
@@ -1154,19 +1107,24 @@ class DeterministicHistoryEngine(
                 ),
 
             trapRisk =
-                trapRisk,
+                clamp(
+                    max(
+                        historicalTrap,
+                        capturePressure
+                    )
+                ),
 
             samples =
                 samples,
 
             wins =
-                state.wins,
+                currentWins,
 
             falseSignals =
-                state.falseSignals,
+                currentFalse,
 
             consecutiveFalseSignals =
-                state.consecutiveFalseSignals,
+                consecutiveFalse,
 
             capturePressure =
                 capturePressure,
