@@ -25,6 +25,12 @@ class MainActivity : AppCompatActivity() {
     private val candleClient =
         TwelveDataCandleClient()
 
+        private val marketCandleCache by lazy {
+    MarketCandleCache(
+        applicationContext
+    )
+}
+
     private val calibrationRuntime by lazy {
         CalibrationRuntime(
             applicationContext
@@ -68,15 +74,18 @@ class MainActivity : AppCompatActivity() {
         HashMap<String, Long>()
 
     private val candleIntervals =
-        mapOf(
-            "M1" to 60_000L,
-            "M5" to 300_000L,
-            "M15" to 900_000L,
-            "M30" to 1_800_000L,
-            "H1" to 3_600_000L,
-            "H4" to 14_400_000L,
-            "D1" to 86_400_000L
-        )
+    mapOf(
+        "M1" to 60_000L,
+        "M5" to 300_000L,
+        "M15" to 900_000L,
+        "M30" to 1_800_000L,
+        "H1" to 3_600_000L,
+        "H4" to 14_400_000L,
+        "D1" to 86_400_000L,
+        "W1" to 604_800_000L,
+        "MN1" to 2_592_000_000L,
+        "Y1" to 31_536_000_000L
+    )
 
     private var candleApiBackoffUntil =
         0L
@@ -210,12 +219,12 @@ class MainActivity : AppCompatActivity() {
             null
 
         synchronized(
-            candleCache
-        ) {
-            candleCache.clear()
-        }
+    candleCache
+) {
+    candleCache.clear()
+}
 
-        lastCandleUpdate.clear()
+lastCandleUpdate.clear()
 
         candleApiBackoffUntil =
             0L
@@ -1353,15 +1362,18 @@ val effectiveFsi =
         }
 
         val timeframes =
-            listOf(
-                "M1",
-                "M5",
-                "M15",
-                "M30",
-                "H1",
-                "H4",
-                "D1"
-            )
+    listOf(
+        "M1",
+        "M5",
+        "M15",
+        "M30",
+        "H1",
+        "H4",
+        "D1",
+        "W1",
+        "MN1",
+        "Y1"
+    )
 
         for (
             timeframe in timeframes
@@ -1383,6 +1395,29 @@ val effectiveFsi =
                 candleCache[
                     timeframe
                 ]
+            val persistent =
+    marketCandleCache.get(
+        symbol =
+            selectedAsset,
+
+        timeframe =
+            timeframe
+    )
+
+if (
+    persistent.isNotEmpty()
+) {
+
+    synchronized(
+        candleCache
+    ) {
+
+        candleCache[
+            timeframe
+        ] =
+            persistent
+    }
+}
 
             if (
                 cached != null &&
@@ -1407,25 +1442,37 @@ val effectiveFsi =
                             200
                     )
 
-                if (
-                    fresh.isNotEmpty()
-                ) {
+             if (
+    fresh.isNotEmpty()
+) {
 
-                    synchronized(
-                        candleCache
-                    ) {
+    val merged =
+        marketCandleCache.merge(
+            symbol =
+                selectedAsset,
 
-                        candleCache[
-                            timeframe
-                        ] =
-                            fresh
-                    }
+            timeframe =
+                timeframe,
 
-                    lastCandleUpdate[
-                        timeframe
-                    ] =
-                        now
-                }
+            freshCandles =
+                fresh
+        )
+
+    synchronized(
+        candleCache
+    ) {
+
+        candleCache[
+            timeframe
+        ] =
+            merged
+    }
+
+    lastCandleUpdate[
+        timeframe
+    ] =
+        now
+}   
 
                 Thread.sleep(
                     700L
