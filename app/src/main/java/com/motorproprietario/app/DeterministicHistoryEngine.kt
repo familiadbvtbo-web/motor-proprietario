@@ -13,8 +13,8 @@ data class HistoricalDeterminism(
     val falseSignals: Int
 )
 
-private data class PendingDeterministicSignal(
-    val key: String,
+private data class PendingSignal(
+    val historyKey: String,
     val direction: String,
     val entryPrice: Double,
     val atr: Double,
@@ -32,22 +32,11 @@ class DeterministicHistoryEngine(
             Context.MODE_PRIVATE
         )
 
-    private val pending =
-        mutableListOf<PendingDeterministicSignal>()
+    private val pendingSignals =
+        mutableListOf<PendingSignal>()
 
-    private val lastObserved =
+    private val lastObservation =
         mutableMapOf<String, Long>()
-
-    private val timeframeIntervals =
-        mapOf(
-            "M1" to 60_000L,
-            "M5" to 300_000L,
-            "M15" to 900_000L,
-            "M30" to 1_800_000L,
-            "H1" to 3_600_000L,
-            "H4" to 14_400_000L,
-            "D1" to 86_400_000L
-        )
 
     private fun clamp(
         value: Double,
@@ -65,74 +54,166 @@ class DeterministicHistoryEngine(
         )
     }
 
-    private fun interval(
+    private fun timeframeMilliseconds(
         timeframe: String
     ): Long {
 
-        return timeframeIntervals[
+        return when (
             timeframe.uppercase()
-        ] ?: 900_000L
+        ) {
+
+            "M1" ->
+                60_000L
+
+            "M5" ->
+                300_000L
+
+            "M15" ->
+                900_000L
+
+            "M30" ->
+                1_800_000L
+
+            "H1" ->
+                3_600_000L
+
+            "H4" ->
+                14_400_000L
+
+            "D1" ->
+                86_400_000L
+
+            else ->
+                900_000L
+        }
     }
 
-    private fun fingerprint(
+    /*
+     * Transformamos o estado atual do mercado
+     * em uma assinatura.
+     *
+     * O histórico não memoriza apenas COMPRA/VENDA.
+     * Ele memoriza o contexto em que o sinal apareceu.
+     */
+    private fun buildHistoryKey(
+        symbol: String,
+        timeframe: String,
         metrics: QuantMetrics,
         direction: String,
-        sequenceStage: SequenceStage
+        stage: String
     ): String {
 
         val trend =
             when {
-                metrics.trend >= 70.0 -> "T3"
-                metrics.trend >= 55.0 -> "T2"
-                metrics.trend <= 30.0 -> "T0"
-                metrics.trend <= 45.0 -> "T1"
-                else -> "TN"
+
+                metrics.trend >= 70.0 ->
+                    "TREND_UP_STRONG"
+
+                metrics.trend >= 55.0 ->
+                    "TREND_UP"
+
+                metrics.trend <= 30.0 ->
+                    "TREND_DOWN_STRONG"
+
+                metrics.trend <= 45.0 ->
+                    "TREND_DOWN"
+
+                else ->
+                    "TREND_NEUTRAL"
             }
 
         val rsi =
             when {
-                metrics.rsi >= 70.0 -> "RO"
-                metrics.rsi >= 55.0 -> "RB"
-                metrics.rsi <= 30.0 -> "RU"
-                metrics.rsi <= 45.0 -> "RS"
-                else -> "RN"
+
+                metrics.rsi >= 70.0 ->
+                    "RSI_OVERBOUGHT"
+
+                metrics.rsi >= 55.0 ->
+                    "RSI_BULL"
+
+                metrics.rsi <= 30.0 ->
+                    "RSI_OVERSOLD"
+
+                metrics.rsi <= 45.0 ->
+                    "RSI_BEAR"
+
+                else ->
+                    "RSI_NEUTRAL"
             }
 
         val breakout =
             when {
-                metrics.breakout >= 70.0 -> "BO"
-                metrics.breakout <= 30.0 -> "BS"
-                else -> "BN"
+
+                metrics.breakout >= 70.0 ->
+                    "BREAKOUT_UP"
+
+                metrics.breakout <= 30.0 ->
+                    "BREAKOUT_DOWN"
+
+                else ->
+                    "BREAKOUT_NEUTRAL"
             }
 
         val structure =
             when {
-                metrics.structure >= 70.0 -> "ST3"
-                metrics.structure >= 55.0 -> "ST2"
-                metrics.structure <= 30.0 -> "ST0"
-                metrics.structure <= 45.0 -> "ST1"
-                else -> "STN"
+
+                metrics.structure >= 70.0 ->
+                    "STRUCTURE_UP_STRONG"
+
+                metrics.structure >= 55.0 ->
+                    "STRUCTURE_UP"
+
+                metrics.structure <= 30.0 ->
+                    "STRUCTURE_DOWN_STRONG"
+
+                metrics.structure <= 45.0 ->
+                    "STRUCTURE_DOWN"
+
+                else ->
+                    "STRUCTURE_NEUTRAL"
             }
 
-        val mtf =
+        val volume =
             when {
-                metrics.trend >= 60.0 -> "UP"
-                metrics.trend <= 40.0 -> "DN"
-                else -> "NE"
+
+                metrics.volume >= 70.0 ->
+                    "VOLUME_HIGH"
+
+                metrics.volume <= 30.0 ->
+                    "VOLUME_LOW"
+
+                else ->
+                    "VOLUME_NORMAL"
+            }
+
+        val volatility =
+            when {
+
+                metrics.volatility >= 70.0 ->
+                    "VOL_HIGH"
+
+                metrics.volatility <= 30.0 ->
+                    "VOL_LOW"
+
+                else ->
+                    "VOL_NORMAL"
             }
 
         return listOf(
+            symbol,
+            timeframe,
             direction,
-            sequenceStage.name,
+            stage,
             trend,
             rsi,
             breakout,
             structure,
-            mtf
+            volume,
+            volatility
         ).joinToString("|")
     }
 
-    private fun readWins(
+    private fun wins(
         key: String
     ): Int {
 
@@ -142,7 +223,7 @@ class DeterministicHistoryEngine(
         )
     }
 
-    private fun readFalseSignals(
+    private fun falseSignals(
         key: String
     ): Int {
 
@@ -152,38 +233,44 @@ class DeterministicHistoryEngine(
         )
     }
 
-    private fun saveResult(
+    private fun registerResult(
         key: String,
-        win: Boolean
+        success: Boolean
     ) {
 
-        val wins =
-            readWins(key)
+        val currentWins =
+            wins(key)
 
-        val falseSignals =
-            readFalseSignals(key)
+        val currentFalse =
+            falseSignals(key)
 
         preferences.edit()
             .putInt(
                 "$key.wins",
-                if (win) {
-                    wins + 1
+                if (success) {
+                    currentWins + 1
                 } else {
-                    wins
+                    currentWins
                 }
             )
             .putInt(
                 "$key.false",
-                if (!win) {
-                    falseSignals + 1
+                if (!success) {
+                    currentFalse + 1
                 } else {
-                    falseSignals
+                    currentFalse
                 }
             )
             .apply()
     }
 
-    private fun evaluatePending(
+    /*
+     * Verifica sinais antigos usando o preço REAL
+     * que chegou posteriormente.
+     *
+     * Não cria preço artificial.
+     */
+    private fun evaluatePendingSignals(
         currentPrice: Double,
         now: Long
     ) {
@@ -196,7 +283,7 @@ class DeterministicHistoryEngine(
         }
 
         val iterator =
-            pending.iterator()
+            pendingSignals.iterator()
 
         while (
             iterator.hasNext()
@@ -204,20 +291,6 @@ class DeterministicHistoryEngine(
 
             val signal =
                 iterator.next()
-
-            if (
-                now <
-                    signal.createdAt +
-                    min(
-                        3L * interval(
-                            signal.key
-                                .substringAfterLast("@")
-                        ),
-                        3_600_000L
-                    )
-            ) {
-                continue
-            }
 
             val movement =
                 currentPrice -
@@ -241,9 +314,14 @@ class DeterministicHistoryEngine(
                     signal.direction ==
                     "COMPRA"
                 ) {
-                    movement >= threshold
+
+                    movement >=
+                        threshold
+
                 } else {
-                    movement <= -threshold
+
+                    movement <=
+                        -threshold
                 }
 
             val adverse =
@@ -251,17 +329,22 @@ class DeterministicHistoryEngine(
                     signal.direction ==
                     "COMPRA"
                 ) {
-                    movement <= -threshold
+
+                    movement <=
+                        -threshold
+
                 } else {
-                    movement >= threshold
+
+                    movement >=
+                        threshold
                 }
 
             if (
                 favorable
             ) {
 
-                saveResult(
-                    signal.key,
+                registerResult(
+                    signal.historyKey,
                     true
                 )
 
@@ -272,8 +355,8 @@ class DeterministicHistoryEngine(
                 now >= signal.expiryAt
             ) {
 
-                saveResult(
-                    signal.key,
+                registerResult(
+                    signal.historyKey,
                     false
                 )
 
@@ -285,14 +368,14 @@ class DeterministicHistoryEngine(
     fun apply(
         symbol: String,
         timeframe: String,
-        sequenceStage: SequenceStage,
+        stage: String,
         metrics: QuantMetrics,
         deterministic: DeterministicResult,
         currentPrice: Double,
         now: Long
     ): DeterministicResult {
 
-        evaluatePending(
+        evaluatePendingSignals(
             currentPrice,
             now
         )
@@ -314,36 +397,47 @@ class DeterministicHistoryEngine(
             return deterministic
         }
 
-        val historyKey =
-            "$symbol|$timeframe|" +
-                fingerprint(
+        val key =
+            buildHistoryKey(
+                symbol =
+                    symbol,
+
+                timeframe =
+                    timeframe,
+
+                metrics =
                     metrics,
+
+                direction =
                     direction,
-                    sequenceStage
-                )
 
-        val observationKey =
-            "$historyKey@$timeframe"
-
-        val minimumSpacing =
-            max(
-                30_000L,
-                interval(timeframe) / 2L
+                stage =
+                    stage
             )
 
-        val previousObservation =
-            lastObserved[
-                observationKey
-            ]
+        val spacing =
+            max(
+                30_000L,
+                timeframeMilliseconds(
+                    timeframe
+                ) / 2L
+            )
 
-        val alreadyObserved =
-            previousObservation != null &&
+        val previous =
+            lastObservation[key]
+
+        val tooSoon =
+            previous != null &&
                 now -
-                    previousObservation <
-                minimumSpacing
+                    previous <
+                spacing
 
+        /*
+         * Só registra uma nova observação quando
+         * existe sinal suficientemente forte.
+         */
         if (
-            !alreadyObserved &&
+            !tooSoon &&
             deterministic.confidence >= 55.0
         ) {
 
@@ -353,10 +447,10 @@ class DeterministicHistoryEngine(
                     currentPrice * 0.0001
                 )
 
-            pending.add(
-                PendingDeterministicSignal(
-                    key =
-                        observationKey,
+            pendingSignals.add(
+                PendingSignal(
+                    historyKey =
+                        key,
 
                     direction =
                         direction,
@@ -372,31 +466,30 @@ class DeterministicHistoryEngine(
 
                     expiryAt =
                         now +
-                            interval(
+                            timeframeMilliseconds(
                                 timeframe
                             ) * 10L
                 )
             )
 
-            lastObserved[
-                observationKey
-            ] = now
+            lastObservation[key] =
+                now
         }
 
-        val wins =
-            readWins(
-                historyKey
-            )
+        val currentWins =
+            wins(key)
 
-        val falseSignals =
-            readFalseSignals(
-                historyKey
-            )
+        val currentFalse =
+            falseSignals(key)
 
         val samples =
-            wins +
-                falseSignals
+            currentWins +
+                currentFalse
 
+        /*
+         * Sem histórico suficiente,
+         * não altera o resultado original.
+         */
         if (
             samples < 3
         ) {
@@ -404,14 +497,14 @@ class DeterministicHistoryEngine(
         }
 
         /*
-         * Taxa histórica de acerto.
+         * Suavização estatística.
          *
-         * Suavização evita que 1 único
-         * resultado domine o motor.
+         * Evita que poucos eventos produzam
+         * uma alteração exagerada.
          */
         val reliability =
             (
-                wins + 1.0
+                currentWins + 1.0
             ) /
                 (
                     samples + 2.0
@@ -424,17 +517,16 @@ class DeterministicHistoryEngine(
                     reliability
             )
 
-        /*
-         * Quanto maior a repetição de falhas
-         * naquele padrão, maior a neutralização
-         * da força direcional.
-         */
         val historicalWeight =
             min(
                 1.0,
-                samples / 20.0
+                samples /
+                    20.0
             )
 
+        /*
+         * Pressão histórica de armadilha.
+         */
         val trapPressure =
             historicalTrap *
                 historicalWeight
@@ -448,51 +540,69 @@ class DeterministicHistoryEngine(
         var neutral =
             deterministic.neutralScore
 
-        val directionalPenalty =
-            (
-                trapPressure -
-                    50.0
-            ) *
-                0.25
-
+        /*
+         * Histórico ruim:
+         * reduz a força direcional
+         * e aumenta o neutro.
+         */
         if (
-            directionalPenalty > 0.0
+            trapPressure > 50.0
         ) {
+
+            val penalty =
+                (
+                    trapPressure -
+                        50.0
+                ) *
+                    0.25
 
             val factor =
                 (
                     1.0 -
-                        directionalPenalty /
+                        penalty /
                         100.0
                 ).coerceIn(
                     0.50,
                     1.0
                 )
 
-            buy *= factor
-            sell *= factor
+            buy *=
+                factor
+
+            sell *=
+                factor
 
             neutral +=
-                directionalPenalty
+                penalty
+        }
 
-        } else {
+        /*
+         * Histórico bom:
+         * permite uma pequena confirmação,
+         * nunca uma garantia.
+         */
+        else {
 
             val reinforcement =
                 (
-                    -directionalPenalty
+                    50.0 -
+                        trapPressure
                 ) *
-                    0.15
+                    0.10
 
             if (
-                direction == "COMPRA"
+                direction ==
+                "COMPRA"
             ) {
-                buy += reinforcement
-            } else {
-                sell += reinforcement
-            }
 
-            neutral -=
-                reinforcement
+                buy +=
+                    reinforcement
+
+            } else {
+
+                sell +=
+                    reinforcement
+            }
         }
 
         val total =
@@ -521,107 +631,134 @@ class DeterministicHistoryEngine(
                 total *
                 100.0
 
-        val historicalConfidence =
-            clamp(
-                reliability
-            )
-
         val confidence =
             clamp(
                 deterministic.confidence +
                     (
-                        historicalConfidence -
+                        reliability -
                             50.0
                     ) *
-                        0.35 *
+                        0.25 *
                         historicalWeight -
+
                     trapPressure *
-                        0.10
+                        0.08
             )
 
-        val finalTrap =
+        val finalTrapRisk =
             clamp(
                 deterministic.trapRisk *
                     0.65 +
+
                     historicalTrap *
                     historicalWeight *
                     0.35
             )
 
+        val finalDirection =
+            when {
+
+                buy >= sell &&
+                    buy >= neutral ->
+                    "COMPRA"
+
+                sell >= buy &&
+                    sell >= neutral ->
+                    "VENDA"
+
+                else ->
+                    "NEUTRO"
+            }
+
         return deterministic.copy(
 
             buyScore =
-                clamp(buy),
+                clamp(
+                    buy
+                ),
 
             sellScore =
-                clamp(sell),
+                clamp(
+                    sell
+                ),
 
             neutralScore =
-                clamp(neutral),
+                clamp(
+                    neutral
+                ),
 
             directionalBias =
-                when {
-                    buy >= sell &&
-                        buy >= neutral ->
-                        "COMPRA"
-
-                    sell >= buy &&
-                        sell >= neutral ->
-                        "VENDA"
-
-                    else ->
-                        "NEUTRO"
-                },
+                finalDirection,
 
             confidence =
                 confidence,
 
             trapRisk =
-                finalTrap
+                finalTrapRisk
         )
     }
 
     fun statistics(
         symbol: String,
         timeframe: String,
+        stage: String,
         metrics: QuantMetrics,
-        direction: String,
-        sequenceStage: SequenceStage
+        direction: String
     ): HistoricalDeterminism {
 
         val key =
-            "$symbol|$timeframe|" +
-                fingerprint(
+            buildHistoryKey(
+                symbol =
+                    symbol,
+
+                timeframe =
+                    timeframe,
+
+                metrics =
                     metrics,
+
+                direction =
                     direction,
-                    sequenceStage
-                )
 
-        val wins =
-            readWins(key)
+                stage =
+                    stage
+            )
 
-        val falseSignals =
-            readFalseSignals(key)
+        val currentWins =
+            wins(key)
+
+        val currentFalse =
+            falseSignals(key)
 
         val samples =
-            wins +
-                falseSignals
+            currentWins +
+                currentFalse
 
         if (
             samples == 0
         ) {
+
             return HistoricalDeterminism(
-                confidence = 50.0,
-                trapRisk = 50.0,
-                samples = 0,
-                wins = 0,
-                falseSignals = 0
+                confidence =
+                    50.0,
+
+                trapRisk =
+                    50.0,
+
+                samples =
+                    0,
+
+                wins =
+                    0,
+
+                falseSignals =
+                    0
             )
         }
 
         val reliability =
             (
-                wins + 1.0
+                currentWins + 1.0
             ) /
                 (
                     samples + 2.0
@@ -644,10 +781,10 @@ class DeterministicHistoryEngine(
                 samples,
 
             wins =
-                wins,
+                currentWins,
 
             falseSignals =
-                falseSignals
+                currentFalse
         )
     }
 }
