@@ -2408,6 +2408,50 @@ append(
 )
 
             append(
+    "HISTÓRICO DE FALSOS SINAIS\n\n"
+)
+
+append(
+    "AMOSTRAS: ${
+        historicalStats.samples
+    }\n"
+)
+
+append(
+    "ACERTOS: ${
+        historicalStats.wins
+    }\n"
+)
+
+append(
+    "FALSOS SINAIS: ${
+        historicalStats.falseSignals
+    }\n"
+)
+
+append(
+    "FALSOS CONSECUTIVOS: ${
+        historicalStats.consecutiveFalseSignals
+    }\n"
+)
+
+append(
+    "PRESSÃO DE CAPTURA: ${
+        "%.1f".format(
+            historicalStats.capturePressure
+        )
+    }%\n"
+)
+
+append(
+    "PRESSÃO DE REALIZAÇÃO: ${
+        "%.1f".format(
+            historicalStats.realizationPressure
+        )
+    }%\n\n"
+)
+
+            append(
                 "━━━━━━━━━━━━━━━━━━━━\n"
             )
 
