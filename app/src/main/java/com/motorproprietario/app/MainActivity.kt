@@ -2110,6 +2110,25 @@ class MainActivity : AppCompatActivity() {
                     "BAIXO"
             }
 
+            val historicalStats =
+    deterministicHistoryEngine.statistics(
+
+        symbol =
+            selectedAsset,
+
+        timeframe =
+            bestTimeframe,
+
+        stage =
+            sequence.stage.name,
+
+        metrics =
+            metrics,
+
+        direction =
+            direction
+    )
+
         return buildString {
 
             append(
