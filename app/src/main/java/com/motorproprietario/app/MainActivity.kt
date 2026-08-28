@@ -668,6 +668,31 @@ class MainActivity : AppCompatActivity() {
                         )
                     )
 
+                    bestDeterministic =
+    deterministicHistoryEngine.apply(
+
+        symbol =
+            selectedAsset,
+
+        timeframe =
+            bestTimeframe,
+
+        stage =
+            sequenceStage.name,
+
+        metrics =
+            bestMetrics,
+
+        deterministic =
+            bestDeterministic,
+
+        currentPrice =
+            quote.price,
+
+        now =
+            now
+    )
+
                 /*
                  * ==================================================
                  * PROBABILIDADE DO MELHOR TIMEFRAME
