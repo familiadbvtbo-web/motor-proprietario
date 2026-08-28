@@ -1917,7 +1917,7 @@ object RealtimeMarketAnalyzer {
                 fsi =
                     fsi,
 
-                multiTimeFrame =
+                multiTimeframe =
                     mtfConfluence,
 
                 dataQuality =
