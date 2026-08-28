@@ -842,18 +842,18 @@ object DeterministicEngine {
             )
 
         val confidence =
-            clamp(
-                (
-                    max(
-                        buyProbability,
-                        sellProbability
-                    ) -
-                        neutralProbability
-                ) *
-                    1.10 +
-                confirmation * 0.30 -
-                trap * 0.25
+    clamp(
+        max(
+            0.0,
+            (
+                confirmation * 0.45 +
+                mtf * 0.30 +
+                expansionValue * 0.10 +
+                (100.0 - trap) * 0.10 +
+                (100.0 - conflict) * 0.05
             )
+        )
+    )
 
         return DeterministicResult(
 
