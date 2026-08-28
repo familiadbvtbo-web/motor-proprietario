@@ -527,7 +527,7 @@ class MainActivity : AppCompatActivity() {
                  * MOTOR DETERMINÍSTICO
                  * ==================================================
                  */
-                val deterministic =
+                var deterministic =
                     DeterministicEngine.calculate(
 
                         DeterministicInput(
