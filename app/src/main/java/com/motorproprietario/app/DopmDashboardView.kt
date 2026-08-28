@@ -115,6 +115,13 @@ class DopmDashboardView(
     private val deterministicView = TextView(context)
     private val mtfView = TextView(context)
 
+    private val trapRiskView = TextView(context)
+private val expansionView = TextView(context)
+private val accumulationView = TextView(context)
+private val distributionView = TextView(context)
+private val exhaustionView = TextView(context)
+private val realizationView = TextView(context)
+
     // =========================================================
     // INDICADORES
     // =========================================================
@@ -2048,6 +2055,34 @@ addView(
         mtfView.text =
             "${format(value)}%"
     }
+
+    fun setDeterministicAnalysis(
+    trapRisk: Double,
+    expansion: Double,
+    accumulation: Double,
+    distribution: Double,
+    exhaustion: Double,
+    realizationRisk: Double
+) {
+
+    trapRiskView.text =
+        "${format(trapRisk)}%"
+
+    expansionView.text =
+        "${format(expansion)}%"
+
+    accumulationView.text =
+        "${format(accumulation)}%"
+
+    distributionView.text =
+        "${format(distribution)}%"
+
+    exhaustionView.text =
+        "${format(exhaustion)}%"
+
+    realizationView.text =
+        "${format(realizationRisk)}%"
+}
 
     fun setBestTimeframe(
         value: String
