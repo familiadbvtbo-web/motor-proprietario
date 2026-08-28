@@ -1114,6 +1114,15 @@ class MainActivity : AppCompatActivity() {
                 realtime.mtfConfluence
         )
 
+        dopmDashboardController.updateIndicators(
+    realtime.metrics[bestTimeframe]
+        ?: realtime.metrics[selectedTimeframe]
+        ?: realtime.metrics["M15"]
+        ?: return,
+    realtime.fsi,
+    realtime.mtfConfluence
+)
+
         /*
          * ==================================================
          * MELHOR TIMEFRAME
