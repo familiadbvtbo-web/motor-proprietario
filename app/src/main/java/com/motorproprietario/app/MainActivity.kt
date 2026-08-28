@@ -1116,6 +1116,29 @@ class MainActivity : AppCompatActivity() {
                 deterministic.confidence
             )
 
+            dopmDashboardController
+    .view()
+    ?.setDeterministicAnalysis(
+
+        trapRisk =
+            deterministic.trapRisk,
+
+        expansion =
+            deterministic.expansion,
+
+        accumulation =
+            deterministic.accumulation,
+
+        distribution =
+            deterministic.distribution,
+
+        exhaustion =
+            deterministic.exhaustion,
+
+        realizationRisk =
+            deterministic.realizationRisk
+    )
+
         /*
          * ==================================================
          * CONFLUÊNCIA MTF REAL
