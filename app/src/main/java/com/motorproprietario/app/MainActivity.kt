@@ -31,6 +31,12 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
+    private val deterministicHistoryEngine by lazy {
+    DeterministicHistoryEngine(
+        applicationContext
+    )
+    }
+
     private var selectedAsset =
         "EUR/USD"
 
