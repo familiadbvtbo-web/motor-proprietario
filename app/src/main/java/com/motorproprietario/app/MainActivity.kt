@@ -919,6 +919,9 @@ val effectiveFsi =
 
                         realtime =
                             realtime,
+                        
+                        effectiveFsi =
+                            effectiveFsi,
 
                         deterministic =
                             bestDeterministic,
