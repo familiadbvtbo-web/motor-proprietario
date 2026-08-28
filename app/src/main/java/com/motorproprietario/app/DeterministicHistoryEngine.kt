@@ -10,7 +10,10 @@ data class HistoricalDeterminism(
     val trapRisk: Double,
     val samples: Int,
     val wins: Int,
-    val falseSignals: Int
+    val falseSignals: Int,
+    val consecutiveFalseSignals: Int = 0,
+    val capturePressure: Double = 0.0,
+    val realizationPressure: Double = 0.0
 )
 
 private data class PendingSignal(
@@ -20,6 +23,13 @@ private data class PendingSignal(
     val atr: Double,
     val createdAt: Long,
     val expiryAt: Long
+)
+
+private data class HistoryState(
+    val wins: Int,
+    val falseSignals: Int,
+    val consecutiveFalseSignals: Int,
+    val realizationEvents: Int
 )
 
 class DeterministicHistoryEngine(
@@ -32,42 +42,11 @@ class DeterministicHistoryEngine(
             Context.MODE_PRIVATE
         )
 
-    /*
-     * ============================================================
-     * SINAIS PENDENTES
-     * ============================================================
-     *
-     * Guarda sinais reais para avaliação posterior.
-     *
-     * Não existe preço artificial.
-     * O resultado somente é definido quando um preço posterior
-     * realmente chega.
-     */
     private val pendingSignals =
         mutableListOf<PendingSignal>()
 
-    /*
-     * Evita registrar o mesmo contexto repetidamente
-     * em intervalos muito curtos.
-     */
     private val lastObservation =
         mutableMapOf<String, Long>()
-
-    /*
-     * ============================================================
-     * LIMITES DO HISTÓRICO
-     * ============================================================
-     */
-
-    private val maximumSequenceSize =
-        12
-
-    /*
-     * Quantidade máxima de falsos consecutivos considerada
-     * para formação de uma sequência forte.
-     */
-    private val maximumFalseSequence =
-        6
 
     private fun clamp(
         value: Double,
@@ -93,26 +72,13 @@ class DeterministicHistoryEngine(
             timeframe.uppercase()
         ) {
 
-            "M1" ->
-                60_000L
-
-            "M5" ->
-                300_000L
-
-            "M15" ->
-                900_000L
-
-            "M30" ->
-                1_800_000L
-
-            "H1" ->
-                3_600_000L
-
-            "H4" ->
-                14_400_000L
-
-            "D1" ->
-                86_400_000L
+            "M1" -> 60_000L
+            "M5" -> 300_000L
+            "M15" -> 900_000L
+            "M30" -> 1_800_000L
+            "H1" -> 3_600_000L
+            "H4" -> 14_400_000L
+            "D1" -> 86_400_000L
 
             else ->
                 900_000L
@@ -123,11 +89,8 @@ class DeterministicHistoryEngine(
      * ============================================================
      * ASSINATURA DO CONTEXTO
      * ============================================================
-     *
-     * O histórico não memoriza apenas COMPRA/VENDA.
-     *
-     * Ele memoriza o contexto em que o sinal apareceu.
      */
+
     private fun buildHistoryKey(
         symbol: String,
         timeframe: String,
@@ -248,263 +211,146 @@ class DeterministicHistoryEngine(
 
     /*
      * ============================================================
-     * HISTÓRICO BÁSICO
+     * HISTÓRICO
      * ============================================================
      */
 
     private fun wins(
         key: String
-    ): Int {
-
-        return preferences.getInt(
+    ): Int =
+        preferences.getInt(
             "$key.wins",
             0
         )
-    }
 
     private fun falseSignals(
         key: String
-    ): Int {
-
-        return preferences.getInt(
+    ): Int =
+        preferences.getInt(
             "$key.false",
             0
+        )
+
+    private fun consecutiveFalseSignals(
+        key: String
+    ): Int =
+        preferences.getInt(
+            "$key.consecutive_false",
+            0
+        )
+
+    private fun realizationEvents(
+        key: String
+    ): Int =
+        preferences.getInt(
+            "$key.realizations",
+            0
+        )
+
+    private fun readState(
+        key: String
+    ): HistoryState {
+
+        return HistoryState(
+
+            wins =
+                wins(key),
+
+            falseSignals =
+                falseSignals(key),
+
+            consecutiveFalseSignals =
+                consecutiveFalseSignals(key),
+
+            realizationEvents =
+                realizationEvents(key)
         )
     }
 
     /*
      * ============================================================
-     * SEQUÊNCIA HISTÓRICA
+     * REGISTRO DE RESULTADO
      * ============================================================
-     *
-     * W = sinal favorável
-     * F = falso/adverso/expirado
-     *
-     * Exemplo:
-     *
-     * W W F W F F F
-     *
-     * Os últimos F consecutivos representam uma possível
-     * sequência de armadilhas.
      */
-    private fun sequence(
-        key: String
-    ): String {
-
-        return preferences.getString(
-            "$key.sequence",
-            ""
-        )
-            ?: ""
-    }
-
-    private fun registerSequence(
-        key: String,
-        success: Boolean
-    ) {
-
-        val current =
-            sequence(key)
-
-        val result =
-            if (success) {
-                "W"
-            } else {
-                "F"
-            }
-
-        val updated =
-            (
-                current +
-                    result
-                )
-                .takeLast(
-                    maximumSequenceSize
-                )
-
-        preferences.edit()
-            .putString(
-                "$key.sequence",
-                updated
-            )
-            .apply()
-    }
 
     private fun registerResult(
         key: String,
         success: Boolean
     ) {
 
-        val currentWins =
-            wins(key)
+        val state =
+            readState(key)
 
-        val currentFalse =
-            falseSignals(key)
+        val newWins =
+            if (success) {
+                state.wins + 1
+            } else {
+                state.wins
+            }
+
+        val newFalse =
+            if (!success) {
+                state.falseSignals + 1
+            } else {
+                state.falseSignals
+            }
+
+        val newConsecutiveFalse =
+            if (success) {
+                0
+            } else {
+                state.consecutiveFalseSignals + 1
+            }
 
         preferences.edit()
             .putInt(
                 "$key.wins",
-                if (success) {
-                    currentWins + 1
-                } else {
-                    currentWins
-                }
+                newWins
             )
             .putInt(
                 "$key.false",
-                if (!success) {
-                    currentFalse + 1
-                } else {
-                    currentFalse
-                }
+                newFalse
+            )
+            .putInt(
+                "$key.consecutive_false",
+                newConsecutiveFalse
             )
             .apply()
-
-        registerSequence(
-            key,
-            success
-        )
     }
 
     /*
      * ============================================================
-     * ÚLTIMA SEQUÊNCIA DE FALSOS
+     * REGISTRO DE REALIZAÇÃO
      * ============================================================
      *
-     * Mede somente os F consecutivos no final da sequência.
-     */
-    private fun consecutiveFalseCount(
-        key: String
-    ): Int {
-
-        val history =
-            sequence(key)
-
-        if (history.isEmpty()) {
-            return 0
-        }
-
-        var count =
-            0
-
-        for (
-            index in history.length - 1 downTo 0
-        ) {
-
-            if (
-                history[index] == 'F'
-            ) {
-
-                count++
-
-                if (
-                    count >=
-                    maximumFalseSequence
-                ) {
-                    break
-                }
-
-            } else {
-                break
-            }
-        }
-
-        return count
-    }
-
-    /*
-     * ============================================================
-     * FORÇA DA SEQUÊNCIA DE FALSOS
-     * ============================================================
+     * Uma realização é registrada quando existe falso sinal
+     * seguido de movimento posterior significativo.
      *
-     * 0 falsos = 0
-     * 1 falso   = baixo
-     * 2 falsos  = relevante
-     * 3 falsos  = forte
-     * 4+        = muito forte
+     * Não é tratada como previsão.
+     * É apenas memória estatística do comportamento observado.
      */
-    private fun falseSequenceScore(
-        key: String
-    ): Double {
 
-        val count =
-            consecutiveFalseCount(
-                key
+    private fun registerRealization(
+        key: String
+    ) {
+
+        val current =
+            realizationEvents(key)
+
+        preferences.edit()
+            .putInt(
+                "$key.realizations",
+                current + 1
             )
-
-        return when {
-
-            count <= 0 ->
-                0.0
-
-            count == 1 ->
-                20.0
-
-            count == 2 ->
-                40.0
-
-            count == 3 ->
-                65.0
-
-            count == 4 ->
-                80.0
-
-            count == 5 ->
-                90.0
-
-            else ->
-                95.0
-        }
-    }
-
-    /*
-     * ============================================================
-     * TAXA HISTÓRICA DE FALSO SINAL
-     * ============================================================
-     */
-    private fun historicalFalseRate(
-        key: String
-    ): Double {
-
-        val w =
-            wins(key)
-
-        val f =
-            falseSignals(key)
-
-        val samples =
-            w + f
-
-        if (
-            samples <= 0
-        ) {
-            return 50.0
-        }
-
-        /*
-         * Suavização.
-         *
-         * Evita que um único evento produza
-         * uma leitura extrema.
-         */
-        return clamp(
-            (
-                f + 1.0
-            ) /
-                (
-                    samples + 2.0
-                ) *
-                100.0
-        )
+            .apply()
     }
 
     /*
      * ============================================================
      * AVALIAÇÃO DOS SINAIS PENDENTES
      * ============================================================
-     *
-     * Utiliza somente preços reais recebidos posteriormente.
      */
+
     private fun evaluatePendingSignals(
         currentPrice: Double,
         now: Long
@@ -542,7 +388,6 @@ class DeterministicHistoryEngine(
             ) {
 
                 iterator.remove()
-
                 continue
             }
 
@@ -576,6 +421,9 @@ class DeterministicHistoryEngine(
                         threshold
                 }
 
+            /*
+             * Sinal funcionou.
+             */
             if (
                 favorable
             ) {
@@ -587,9 +435,38 @@ class DeterministicHistoryEngine(
 
                 iterator.remove()
 
-            } else if (
-                adverse ||
-                now >= signal.expiryAt
+                continue
+            }
+
+            /*
+             * Movimento contrário.
+             */
+            if (
+                adverse
+            ) {
+
+                registerResult(
+                    signal.historyKey,
+                    false
+                )
+
+                /*
+                 * O evento de falso sinal pode alimentar
+                 * a memória de realização posteriormente.
+                 *
+                 * Aqui registramos apenas o evento observado.
+                 */
+                iterator.remove()
+
+                continue
+            }
+
+            /*
+             * Expiração sem confirmação.
+             */
+            if (
+                now >=
+                signal.expiryAt
             ) {
 
                 registerResult(
@@ -604,295 +481,126 @@ class DeterministicHistoryEngine(
 
     /*
      * ============================================================
-     * EVIDÊNCIA DE REVERSÃO
+     * CÁLCULO DA PRESSÃO DE CAPTURA
      * ============================================================
      *
-     * Procura evidências de movimento contrário à direção
-     * dominante anterior.
+     * Este é o novo diferencial.
      *
-     * Isto NÃO significa que uma reversão está garantida.
+     * Não usamos simplesmente:
+     *
+     * FSI alto = armadilha
+     *
+     * Agora:
+     *
+     * falsos sinais históricos
+     * + repetição
+     * + contexto
+     * = pressão histórica de captura
      */
-    private fun reversalEvidence(
-        metrics: QuantMetrics,
-        direction: String
+
+    private fun calculateCapturePressure(
+        state: HistoryState
     ): Double {
 
+        val samples =
+            state.wins +
+                state.falseSignals
+
         if (
-            direction != "COMPRA" &&
-            direction != "VENDA"
+            samples < 3
         ) {
             return 0.0
         }
 
-        val oppositeTrend =
-            if (
-                direction == "COMPRA"
-            ) {
-
-                when {
-
-                    metrics.trend <= 30.0 ->
-                        100.0
-
-                    metrics.trend <= 40.0 ->
-                        75.0
-
-                    metrics.trend <= 45.0 ->
-                        55.0
-
-                    else ->
-                        20.0
-                }
-
-            } else {
-
-                when {
-
-                    metrics.trend >= 70.0 ->
-                        100.0
-
-                    metrics.trend >= 60.0 ->
-                        75.0
-
-                    metrics.trend >= 55.0 ->
-                        55.0
-
-                    else ->
-                        20.0
-                }
-            }
-
-        val oppositeMomentum =
-            if (
-                direction == "COMPRA"
-            ) {
-
-                100.0 -
-                    metrics.momentum
-
-            } else {
-
-                metrics.momentum
-            }
-
-        val oppositeStructure =
-            if (
-                direction == "COMPRA"
-            ) {
-
-                100.0 -
-                    metrics.structure
-
-            } else {
-
-                metrics.structure
-            }
-
-        val oppositeBreakout =
-            if (
-                direction == "COMPRA"
-            ) {
-
-                100.0 -
-                    metrics.breakout
-
-            } else {
-
-                metrics.breakout
-            }
-
-        val candleRejection =
-            when {
-
-                metrics.candlePattern >=
-                    75.0 ->
-                    80.0
-
-                metrics.candlePattern <=
-                    25.0 ->
-                    80.0
-
-                else ->
-                    20.0
-            }
-
-        return clamp(
-
-            oppositeTrend * 0.30 +
-
-            oppositeMomentum * 0.20 +
-
-            oppositeStructure * 0.20 +
-
-            oppositeBreakout * 0.15 +
-
-            candleRejection * 0.15
-        )
-    }
-
-    /*
-     * ============================================================
-     * CAPTURE SCORE
-     * ============================================================
-     *
-     * Combina:
-     *
-     * 1. histórico de falso sinal;
-     * 2. sequência de falsos;
-     * 3. risco atual de armadilha;
-     * 4. pressão de liquidez;
-     * 5. conflito estrutural.
-     *
-     * É uma variável interna do motor.
-     */
-    private fun captureScore(
-        key: String,
-        deterministic: DeterministicResult
-    ): Double {
-
         val falseRate =
-            historicalFalseRate(
-                key
-            )
-
-        val sequenceRisk =
-            falseSequenceScore(
-                key
-            )
-
-        val currentTrap =
-            deterministic.trapRisk
-
-        val liquidity =
-            deterministic.liquidityPressure
-
-        val conflict =
-            deterministic.timeframeConflict
-
-        val historicalWeight =
-            min(
-                1.0,
-                (
-                    wins(key) +
-                        falseSignals(key)
-                ) /
-                    20.0
-            )
-
-        val historicalComponent =
-            falseRate *
-                (
-                    0.55 +
-                        historicalWeight *
-                        0.45
-                )
-
-        return clamp(
-
-            historicalComponent * 0.25 +
-
-            sequenceRisk * 0.30 +
-
-            currentTrap * 0.20 +
-
-            liquidity * 0.15 +
-
-            conflict * 0.10
-        )
-    }
-
-    /*
-     * ============================================================
-     * REALIZAÇÃO PÓS-CAPTURA
-     * ============================================================
-     *
-     * Esta é a camada 6.
-     *
-     * Não basta haver FSI.
-     *
-     * O motor procura:
-     *
-     * CAPTURA
-     * +
-     * EXAUSTÃO
-     * +
-     * DIVERGÊNCIA
-     * +
-     * LIQUIDEZ
-     * +
-     * REVERSÃO
-     *
-     * para formar um risco de realização.
-     */
-    private fun realizationAfterCapture(
-        key: String,
-        metrics: QuantMetrics,
-        deterministic: DeterministicResult,
-        currentFalseSignalRisk: Double
-    ): Double {
-
-        val capture =
-            captureScore(
-                key,
-                deterministic
-            )
-
-        val sequence =
-            falseSequenceScore(
-                key
-            )
-
-        val reversal =
-            reversalEvidence(
-                metrics,
-                deterministic.directionalBias
-            )
-
-        val exhaustion =
-            deterministic.exhaustion
-
-        val divergence =
-            abs(
-                metrics.divergence -
-                    50.0
-            ) * 2.0
-
-        val liquidity =
-            deterministic.liquidityPressure
-
-        val currentFsi =
-            clamp(
-                currentFalseSignalRisk
-            )
+            state.falseSignals.toDouble() /
+                samples.toDouble() *
+                100.0
 
         /*
-         * A realização não pode nascer somente do FSI.
-         *
-         * A reversão recebe peso significativo.
+         * Crescimento da penalização conforme
+         * os falsos sinais se repetem.
          */
+        val sequencePressure =
+            when {
+
+                state.consecutiveFalseSignals >= 6 ->
+                    100.0
+
+                state.consecutiveFalseSignals >= 5 ->
+                    90.0
+
+                state.consecutiveFalseSignals >= 4 ->
+                    75.0
+
+                state.consecutiveFalseSignals >= 3 ->
+                    60.0
+
+                state.consecutiveFalseSignals >= 2 ->
+                    35.0
+
+                else ->
+                    0.0
+            }
+
+        /*
+         * Peso de amostra.
+         *
+         * Com 3 eventos não confiamos completamente.
+         * O peso cresce até 1.0 em 20 eventos.
+         */
+        val sampleWeight =
+            min(
+                1.0,
+                samples / 20.0
+            )
+
         return clamp(
-
-            capture * 0.20 +
-
-            sequence * 0.15 +
-
-            exhaustion * 0.20 +
-
-            divergence * 0.10 +
-
-            liquidity * 0.10 +
-
-            reversal * 0.20 +
-
-            currentFsi * 0.05
+            (
+                falseRate * 0.65 +
+                    sequencePressure * 0.35
+            ) *
+                sampleWeight
         )
     }
 
     /*
      * ============================================================
-     * APLICAÇÃO DO HISTÓRICO
+     * PRESSÃO DE REALIZAÇÃO
      * ============================================================
      */
+
+    private fun calculateRealizationPressure(
+        state: HistoryState
+    ): Double {
+
+        val samples =
+            state.wins +
+                state.falseSignals
+
+        if (
+            samples < 5 ||
+            state.realizationEvents <= 0
+        ) {
+            return 0.0
+        }
+
+        val realizationRate =
+            state.realizationEvents.toDouble() /
+                samples.toDouble() *
+                100.0
+
+        return clamp(
+            realizationRate
+        )
+    }
+
+    /*
+     * ============================================================
+     * APLICA HISTÓRICO AO DETERMINISMO
+     * ============================================================
+     */
+
     fun apply(
         symbol: String,
         timeframe: String,
@@ -903,9 +611,6 @@ class DeterministicHistoryEngine(
         now: Long
     ): DeterministicResult {
 
-        /*
-         * Primeiro avaliamos os sinais antigos.
-         */
         evaluatePendingSignals(
             currentPrice,
             now
@@ -946,12 +651,6 @@ class DeterministicHistoryEngine(
                     stage
             )
 
-        /*
-         * ========================================================
-         * REGISTRO DE NOVO SINAL
-         * ========================================================
-         */
-
         val spacing =
             max(
                 30_000L,
@@ -970,12 +669,14 @@ class DeterministicHistoryEngine(
                 spacing
 
         /*
-         * Só registra sinal suficientemente forte.
+         * ========================================================
+         * REGISTRO DE NOVA OBSERVAÇÃO
+         * ========================================================
          */
+
         if (
             !tooSoon &&
-            deterministic.confidence >=
-                55.0
+            deterministic.confidence >= 55.0
         ) {
 
             val atr =
@@ -1014,92 +715,74 @@ class DeterministicHistoryEngine(
                 now
         }
 
-        /*
-         * ========================================================
-         * HISTÓRICO ATUAL
-         * ========================================================
-         */
-
-        val currentWins =
-            wins(key)
-
-        val currentFalse =
-            falseSignals(key)
+        val state =
+            readState(key)
 
         val samples =
-            currentWins +
-                currentFalse
+            state.wins +
+                state.falseSignals
 
         /*
-         * Sem histórico suficiente, ainda podemos calcular
-         * a camada de captura atual, mas não deixamos o
-         * histórico dominar o resultado.
+         * ========================================================
+         * SEM HISTÓRICO
+         * ========================================================
          */
-        val historicalWeight =
-            min(
-                1.0,
-                samples /
-                    20.0
-            )
+
+        if (
+            samples < 3
+        ) {
+
+            return deterministic
+        }
+
+        /*
+         * ========================================================
+         * CONFIABILIDADE
+         * ========================================================
+         */
 
         val reliability =
             (
-                currentWins + 1.0
+                state.wins + 1.0
             ) /
                 (
                     samples + 2.0
                 ) *
                 100.0
 
-        val historicalTrap =
-            clamp(
-                100.0 -
-                    reliability
+        /*
+         * ========================================================
+         * CAPTURE PRESSURE
+         * ========================================================
+         */
+
+        val capturePressure =
+            calculateCapturePressure(
+                state
             )
 
         /*
          * ========================================================
-         * CAPTURA
+         * REALIZATION PRESSURE
          * ========================================================
          */
 
-        val capture =
-            captureScore(
-                key,
-                deterministic
+        val realizationPressure =
+            calculateRealizationPressure(
+                state
             )
 
         /*
          * ========================================================
-         * REALIZAÇÃO PÓS-CAPTURA
+         * PESO HISTÓRICO
          * ========================================================
          */
 
-        val realization =
-            realizationAfterCapture(
-
-                key =
-                    key,
-
-                metrics =
-                    metrics,
-
-                deterministic =
-                    deterministic,
-
-                currentFalseSignalRisk =
-                    deterministic.trapRisk
+        val historicalWeight =
+            min(
+                1.0,
+                samples / 20.0
             )
-
-        /*
-         * ========================================================
-         * PRESSÃO HISTÓRICA
-         * ========================================================
-         */
-
-        val trapPressure =
-            historicalTrap *
-                historicalWeight
 
         var buy =
             deterministic.buyScore
@@ -1112,22 +795,24 @@ class DeterministicHistoryEngine(
 
         /*
          * ========================================================
-         * HISTÓRICO RUIM
+         * AMBIENTE DE CAPTURA
          * ========================================================
-         *
-         * Quanto maior o histórico de falsos sinais,
-         * menor a confiança direcional.
          */
+
         if (
-            trapPressure > 50.0
+            capturePressure >= 50.0
         ) {
 
+            /*
+             * Quanto maior a pressão de captura,
+             * menor a confiança direcional.
+             */
             val penalty =
                 (
-                    trapPressure -
+                    capturePressure -
                         50.0
                 ) *
-                    0.25
+                    0.40
 
             val factor =
                 (
@@ -1135,7 +820,7 @@ class DeterministicHistoryEngine(
                         penalty /
                         100.0
                 ).coerceIn(
-                    0.50,
+                    0.35,
                     1.0
                 )
 
@@ -1147,23 +832,20 @@ class DeterministicHistoryEngine(
 
             neutral +=
                 penalty
-        }
 
-        /*
-         * ========================================================
-         * HISTÓRICO FAVORÁVEL
-         * ========================================================
-         *
-         * Histórico bom gera apenas pequeno reforço.
-         */
-        else {
+        } else {
 
+            /*
+             * Histórico favorável gera apenas
+             * pequeno reforço.
+             */
             val reinforcement =
                 (
                     50.0 -
-                        trapPressure
+                        capturePressure
                 ) *
-                    0.10
+                    0.08 *
+                    historicalWeight
 
             if (
                 direction ==
@@ -1182,131 +864,49 @@ class DeterministicHistoryEngine(
 
         /*
          * ========================================================
-         * CAPTURE SCORE
+         * REALIZAÇÃO
          * ========================================================
          *
-         * Quando a captura fica elevada, reduzimos a força
-         * direcional porque o padrão atual está ficando menos
-         * confiável.
+         * A realização não cria COMPRA/VENDA.
+         * Ela aumenta cautela quando o histórico mostra
+         * que falsos sinais costumam anteceder movimentos
+         * posteriores.
          */
+
         if (
-            capture >=
-                60.0
-        ) {
-
-            val capturePenalty =
-                (
-                    capture -
-                        60.0
-                ) *
-                    0.22
-
-            val factor =
-                (
-                    1.0 -
-                        capturePenalty /
-                        100.0
-                ).coerceIn(
-                    0.55,
-                    1.0
-                )
-
-            buy *=
-                factor
-
-            sell *=
-                factor
-
-            neutral +=
-                capturePenalty
-        }
-
-        /*
-         * ========================================================
-         * REALIZAÇÃO PÓS-CAPTURA
-         * ========================================================
-         *
-         * Este é o ponto novo.
-         *
-         * Realização alta não significa automaticamente
-         * "vender" ou "comprar".
-         *
-         * Primeiro reduzimos a confiança da direção atual.
-         *
-         * Somente quando a evidência de reversão é suficiente,
-         * damos pequeno peso à direção oposta.
-         */
-        if (
-            realization >=
-                65.0
+            realizationPressure >= 60.0 &&
+            capturePressure >= 50.0
         ) {
 
             val realizationPenalty =
                 (
-                    realization -
-                        60.0
+                    realizationPressure -
+                        50.0
                 ) *
-                    0.30
+                    0.20
 
-            val factor =
+            buy *=
                 (
                     1.0 -
                         realizationPenalty /
                         100.0
                 ).coerceIn(
-                    0.45,
+                    0.60,
                     1.0
                 )
 
-            buy *=
-                factor
-
             sell *=
-                factor
+                (
+                    1.0 -
+                        realizationPenalty /
+                        100.0
+                ).coerceIn(
+                    0.60,
+                    1.0
+                )
 
             neutral +=
                 realizationPenalty
-
-            /*
-             * Evidência de reversão.
-             */
-            val reversal =
-                reversalEvidence(
-                    metrics,
-                    direction
-                )
-
-            if (
-                reversal >=
-                    65.0 &&
-                realization >=
-                    70.0
-            ) {
-
-                val oppositeBoost =
-                    min(
-                        12.0,
-                        (
-                            realization -
-                                65.0
-                        ) *
-                            0.25
-                    )
-
-                if (
-                    direction ==
-                    "COMPRA"
-                ) {
-
-                    sell +=
-                        oppositeBoost
-
-                } else {
-
-                    buy +=
-                        oppositeBoost
-                }
-            }
         }
 
         /*
@@ -1316,46 +916,85 @@ class DeterministicHistoryEngine(
          */
 
         val total =
-            buy.coerceAtLeast(
-                0.0
-            ) +
-            sell.coerceAtLeast(
-                0.0
-            ) +
-            neutral.coerceAtLeast(
-                0.0
-            )
+            buy +
+                sell +
+                neutral
 
         if (
             total <= 0.0
         ) {
+
             return deterministic
         }
 
         buy =
-            buy.coerceAtLeast(
-                0.0
-            ) /
+            buy /
                 total *
                 100.0
 
         sell =
-            sell.coerceAtLeast(
-                0.0
-            ) /
+            sell /
                 total *
                 100.0
 
         neutral =
-            neutral.coerceAtLeast(
-                0.0
-            ) /
+            neutral /
                 total *
                 100.0
 
         /*
          * ========================================================
-         * DIREÇÃO HISTÓRICA FINAL
+         * CONFIANÇA FINAL
+         * ========================================================
+         */
+
+        val confidence =
+            clamp(
+
+                deterministic.confidence +
+
+                    (
+                        reliability -
+                            50.0
+                    ) *
+                        0.20 *
+                        historicalWeight -
+
+                    capturePressure *
+                        0.12 +
+
+                    if (
+                        realizationPressure >=
+                        60.0
+                    ) {
+                        -5.0
+                    } else {
+                        0.0
+                    }
+            )
+
+        /*
+         * ========================================================
+         * TRAP RISK FINAL
+         * ========================================================
+         */
+
+        val finalTrapRisk =
+            clamp(
+
+                deterministic.trapRisk *
+                    0.55 +
+
+                    capturePressure *
+                    0.30 +
+
+                    realizationPressure *
+                    0.15
+            )
+
+        /*
+         * ========================================================
+         * DIREÇÃO
          * ========================================================
          */
 
@@ -1364,113 +1003,16 @@ class DeterministicHistoryEngine(
 
                 buy >= sell &&
                     buy >= neutral ->
-
                     "COMPRA"
 
                 sell >= buy &&
                     sell >= neutral ->
-
                     "VENDA"
 
                 else ->
-
                     "NEUTRO"
             }
 
-        /*
-         * ========================================================
-         * CONFIANÇA
-         * ========================================================
-         */
-
-        val historicalAdjustment =
-            (
-                reliability -
-                    50.0
-            ) *
-                0.25 *
-                historicalWeight
-
-        val capturePenaltyConfidence =
-            capture *
-                0.06
-
-        val realizationPenaltyConfidence =
-            realization *
-                0.08
-
-        val confidence =
-            clamp(
-
-                deterministic.confidence +
-
-                historicalAdjustment -
-
-                trapPressure *
-                    0.08 -
-
-                capturePenaltyConfidence -
-
-                realizationPenaltyConfidence
-            )
-
-        /*
-         * ========================================================
-         * TRAP RISK FINAL
-         * ========================================================
-         *
-         * Combina o trap atual com:
-         *
-         * - histórico;
-         * - sequência de falsos;
-         * - captura.
-         */
-        val sequenceRisk =
-            falseSequenceScore(
-                key
-            )
-
-        val finalTrapRisk =
-            clamp(
-
-                deterministic.trapRisk *
-                    0.45 +
-
-                historicalTrap *
-                    historicalWeight *
-                    0.20 +
-
-                sequenceRisk *
-                    0.15 +
-
-                capture *
-                    0.20
-            )
-
-        /*
-         * ========================================================
-         * REALIZATION RISK FINAL
-         * ========================================================
-         */
-        val finalRealizationRisk =
-            clamp(
-
-                deterministic.realizationRisk *
-                    0.55 +
-
-                realization *
-                    0.45
-            )
-
-        /*
-         * ========================================================
-         * RETORNO
-         * ========================================================
-         *
-         * Mantemos a mesma estrutura de DeterministicResult.
-         *
-         * Nenhuma alteração necessária no MainActivity.
-         */
         return deterministic.copy(
 
             buyScore =
@@ -1495,18 +1037,16 @@ class DeterministicHistoryEngine(
                 confidence,
 
             trapRisk =
-                finalTrapRisk,
-
-            realizationRisk =
-                finalRealizationRisk
+                finalTrapRisk
         )
     }
 
     /*
      * ============================================================
-     * ESTATÍSTICAS
+     * ESTATÍSTICAS PARA A INTERFACE
      * ============================================================
      */
+
     fun statistics(
         symbol: String,
         timeframe: String,
@@ -1533,15 +1073,12 @@ class DeterministicHistoryEngine(
                     stage
             )
 
-        val currentWins =
-            wins(key)
-
-        val currentFalse =
-            falseSignals(key)
+        val state =
+            readState(key)
 
         val samples =
-            currentWins +
-                currentFalse
+            state.wins +
+                state.falseSignals
 
         if (
             samples == 0
@@ -1553,7 +1090,7 @@ class DeterministicHistoryEngine(
                     50.0,
 
                 trapRisk =
-                    50.0,
+                    0.0,
 
                 samples =
                     0,
@@ -1562,38 +1099,51 @@ class DeterministicHistoryEngine(
                     0,
 
                 falseSignals =
-                    0
+                    0,
+
+                consecutiveFalseSignals =
+                    0,
+
+                capturePressure =
+                    0.0,
+
+                realizationPressure =
+                    0.0
             )
         }
 
         val reliability =
             (
-                currentWins + 1.0
+                state.wins + 1.0
             ) /
                 (
                     samples + 2.0
                 ) *
                 100.0
 
-        val historicalTrap =
-            clamp(
-                100.0 -
-                    reliability
+        val capturePressure =
+            calculateCapturePressure(
+                state
             )
 
-        val sequenceRisk =
-            falseSequenceScore(
-                key
+        val realizationPressure =
+            calculateRealizationPressure(
+                state
             )
 
-        val combinedTrap =
+        val trapRisk =
             clamp(
 
-                historicalTrap *
-                    0.60 +
+                reliability.let {
+                    100.0 - it
+                } *
+                    0.55 +
 
-                sequenceRisk *
-                    0.40
+                    capturePressure *
+                    0.30 +
+
+                    realizationPressure *
+                    0.15
             )
 
         return HistoricalDeterminism(
@@ -1604,16 +1154,25 @@ class DeterministicHistoryEngine(
                 ),
 
             trapRisk =
-                combinedTrap,
+                trapRisk,
 
             samples =
                 samples,
 
             wins =
-                currentWins,
+                state.wins,
 
             falseSignals =
-                currentFalse
+                state.falseSignals,
+
+            consecutiveFalseSignals =
+                state.consecutiveFalseSignals,
+
+            capturePressure =
+                capturePressure,
+
+            realizationPressure =
+                realizationPressure
         )
     }
 }
