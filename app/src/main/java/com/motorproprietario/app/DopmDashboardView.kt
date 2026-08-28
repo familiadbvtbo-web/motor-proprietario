@@ -1715,28 +1715,80 @@ addView(
                 append(neutralView.text)
 
                 append(
-                    "\n\nPROBABILIDADE: "
-                )
+    "\nPROBABILIDADE: "
+)
 
-                append(
-                    probabilityView.text
-                )
+append(
+    probabilityView.text
+)
 
-                append(
-                    "\nDETERMINISMO: "
-                )
+append(
+    "\nDETERMINISMO: "
+)
 
-                append(
-                    deterministicView.text
-                )
+append(
+    deterministicView.text
+)
 
-                append(
-                    "\nMTF: "
-                )
+append(
+    "\nMTF: "
+)
 
-                append(
-                    mtfView.text
-                )
+append(
+    mtfView.text
+)
+
+append(
+    "\n\nANÁLISE DETERMINÍSTICA\n"
+)
+
+append(
+    "ARMADILHA: "
+)
+
+append(
+    trapRiskView.text
+)
+
+append(
+    "\nEXPANSÃO: "
+)
+
+append(
+    expansionView.text
+)
+
+append(
+    "\nACUMULAÇÃO: "
+)
+
+append(
+    accumulationView.text
+)
+
+append(
+    "\nDISTRIBUIÇÃO: "
+)
+
+append(
+    distributionView.text
+)
+
+append(
+    "\nEXAUSTÃO: "
+)
+
+append(
+    exhaustionView.text
+)
+
+append(
+    "\nREALIZAÇÃO: "
+)
+
+append(
+    realizationView.text
+)
 
                 append(
                     "\n\nENTRADA: "
