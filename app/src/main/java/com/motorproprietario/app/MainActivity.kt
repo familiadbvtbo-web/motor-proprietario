@@ -637,7 +637,7 @@ class MainActivity : AppCompatActivity() {
                  * DETERMINISMO DO MELHOR TIMEFRAME
                  * ==================================================
                  */
-                val bestDeterministic =
+                var bestDeterministic =
                     DeterministicEngine.calculate(
 
                         DeterministicInput(
