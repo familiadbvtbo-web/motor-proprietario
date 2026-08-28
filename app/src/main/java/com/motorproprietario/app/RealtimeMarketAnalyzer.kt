@@ -27,7 +27,8 @@ data class QuantMetrics(
     val resistance: Double,
     val breakout: Double,
     val candlePattern: Double,
-    val divergence: Double
+    val divergence: Double,
+    val forceIndex: Double = 0.0
 )
 
 data class RealtimeAnalysis(
@@ -675,6 +676,143 @@ object RealtimeMarketAnalyzer {
         )
     }
 
+    /*
+     * FORCE INDEX REAL
+     *
+     * FI = (Close atual - Close anterior) * Volume atual
+     *
+     * O valor bruto é preservado em QuantMetrics.forceIndex.
+     */
+    private fun forceIndex(
+        candles: List<MarketCandle>
+    ): Double {
+
+        if (
+            candles.size < 2
+        ) {
+            return 0.0
+        }
+
+        val current =
+            candles.last()
+
+        val previous =
+            candles[candles.size - 2]
+
+        val priceChange =
+            current.close -
+                previous.close
+
+        val volume =
+            if (
+                current.volume.isFinite() &&
+                current.volume > 0.0
+            ) {
+                current.volume
+            } else {
+                0.0
+            }
+
+        return safe(
+            priceChange *
+                volume
+        )
+    }
+
+    /*
+     * Converte o Force Index bruto em
+     * uma escala direcional de 0 a 100.
+     *
+     * 50 = neutro
+     * acima de 50 = pressão compradora
+     * abaixo de 50 = pressão vendedora
+     */
+    private fun forceIndexScore(
+        candles: List<MarketCandle>
+    ): Double {
+
+        if (
+            candles.size < 21
+        ) {
+            return 50.0
+        }
+
+        val values =
+            mutableListOf<Double>()
+
+        for (
+            i in 1 until candles.size
+        ) {
+
+            val current =
+                candles[i]
+
+            val previous =
+                candles[i - 1]
+
+            val change =
+                current.close -
+                    previous.close
+
+            val volume =
+                if (
+                    current.volume.isFinite() &&
+                    current.volume > 0.0
+                ) {
+                    current.volume
+                } else {
+                    0.0
+                }
+
+            val fi =
+                change *
+                    volume
+
+            if (
+                fi.isFinite()
+            ) {
+                values.add(fi)
+            }
+        }
+
+        if (
+            values.isEmpty()
+        ) {
+            return 50.0
+        }
+
+        val recent =
+            mean(
+                values.takeLast(5)
+            )
+
+        val baselineValues =
+            values.takeLast(20)
+
+        val scale =
+            baselineValues
+                .map {
+                    abs(it)
+                }
+                .average()
+
+        if (
+            !scale.isFinite() ||
+            scale <= 0.0
+        ) {
+            return 50.0
+        }
+
+        return clamp(
+            50.0 +
+                (
+                    recent /
+                        scale
+                ) *
+                    25.0
+        )
+    }
+
     private fun volatilityScore(
         candles: List<MarketCandle>
     ): Double {
@@ -831,7 +969,6 @@ object RealtimeMarketAnalyzer {
         if (
             body <= range * 0.10
         ) {
-
             return 50.0
         }
 
@@ -1023,15 +1160,6 @@ object RealtimeMarketAnalyzer {
                 range *
                 100.0
 
-        /*
-         * Faixas aproximadas de Fibonacci.
-         *
-         * Abaixo de 38.2:
-         * maior assimetria compradora.
-         *
-         * Acima de 61.8:
-         * maior assimetria vendedora.
-         */
         return when {
 
             level <= 23.6 ->
@@ -1088,7 +1216,8 @@ object RealtimeMarketAnalyzer {
                 resistance = 0.0,
                 breakout = 50.0,
                 candlePattern = 50.0,
-                divergence = 50.0
+                divergence = 50.0,
+                forceIndex = 0.0
             )
         }
 
@@ -1132,6 +1261,11 @@ object RealtimeMarketAnalyzer {
 
         val adxValue =
             adx(
+                candles
+            )
+
+        val forceIndexValue =
+            forceIndex(
                 candles
             )
 
@@ -1235,7 +1369,9 @@ object RealtimeMarketAnalyzer {
             divergence =
                 divergence(
                     candles
-                )
+                ),
+            forceIndex =
+                forceIndexValue
         )
     }
 
@@ -1275,12 +1411,6 @@ object RealtimeMarketAnalyzer {
             )
         }
 
-        /*
-         * Peso estrutural dos timeframes.
-         *
-         * H1/H4/D1 têm maior peso para direção.
-         * M1/M5 servem principalmente para timing.
-         */
         val weights =
             mapOf(
                 "M1" to 0.05,
@@ -1312,12 +1442,19 @@ object RealtimeMarketAnalyzer {
             totalWeight +=
                 weight
 
-            /*
-             * Fibonacci entra como confirmação
-             * estrutural adicional.
-             */
             val fibonacci =
                 fibonacciScore(
+                    candlesByTimeframe[
+                        timeframe
+                    ].orEmpty()
+                )
+
+            /*
+             * FI entra como confirmação real
+             * da pressão compradora/vendedora.
+             */
+            val fiScore =
+                forceIndexScore(
                     candlesByTimeframe[
                         timeframe
                     ].orEmpty()
@@ -1331,7 +1468,8 @@ object RealtimeMarketAnalyzer {
                     m.volume,
                     m.candlePattern,
                     m.breakout,
-                    fibonacci
+                    fibonacci,
+                    fiScore
                 )
 
             val local =
@@ -1377,9 +1515,6 @@ object RealtimeMarketAnalyzer {
             ) /
                 totalWeight
 
-        /*
-         * Timeframe principal.
-         */
         val primary =
             metrics["M15"]
                 ?: metrics.values.first()
@@ -1396,9 +1531,6 @@ object RealtimeMarketAnalyzer {
             metrics["D1"]
                 ?: primary
 
-        /*
-         * Confluência estrutural.
-         */
         val mtfDirections =
             listOf(
                 primary.trend,
@@ -1431,9 +1563,6 @@ object RealtimeMarketAnalyzer {
                 mtfDirections.size *
                 100.0
 
-        /*
-         * Conflito entre timeframes.
-         */
         val timeframeConflict =
             if (
                 mtfBull > 0 &&
@@ -1457,8 +1586,18 @@ object RealtimeMarketAnalyzer {
             }
 
         /*
-         * Confirmação dos indicadores.
+         * FI do timeframe principal.
          */
+        val primaryCandles =
+            candlesByTimeframe[
+                "M15"
+            ].orEmpty()
+
+        val primaryFiScore =
+            forceIndexScore(
+                primaryCandles
+            )
+
         val indicatorBull =
             listOf(
                 primary.trend >= 60.0,
@@ -1469,7 +1608,8 @@ object RealtimeMarketAnalyzer {
                     primary.ema21,
                 primary.breakout >= 70.0,
                 primary.candlePattern >= 60.0,
-                primary.structure >= 55.0
+                primary.structure >= 55.0,
+                primaryFiScore >= 55.0
             ).count {
                 it
             }
@@ -1484,15 +1624,12 @@ object RealtimeMarketAnalyzer {
                     primary.ema21,
                 primary.breakout <= 30.0,
                 primary.candlePattern <= 40.0,
-                primary.structure <= 45.0
+                primary.structure <= 45.0,
+                primaryFiScore <= 45.0
             ).count {
                 it
             }
 
-        /*
-         * Divergência é tratada como risco,
-         * e não simplesmente como direção.
-         */
         val divergenceRisk =
             when {
 
@@ -1509,17 +1646,30 @@ object RealtimeMarketAnalyzer {
             }
 
         /*
-         * FALSO SINAL
-         *
-         * Quanto maior:
-         * maior o provisionamento necessário.
+         * FI contrário à direção dominante
+         * aumenta o risco de falso sinal.
          */
+        val forceIndexConflict =
+            when {
+
+                indicatorBull > indicatorBear &&
+                    primaryFiScore < 45.0 ->
+                    75.0
+
+                indicatorBear > indicatorBull &&
+                    primaryFiScore > 55.0 ->
+                    75.0
+
+                else ->
+                    0.0
+            }
+
         val confirmationBalance =
             abs(
                 indicatorBull -
                     indicatorBear
             ).toDouble() /
-                7.0 *
+                8.0 *
                 100.0
 
         val falseSignal =
@@ -1527,39 +1677,39 @@ object RealtimeMarketAnalyzer {
                 100.0 -
                     (
                         mtfConfluence *
-                            0.30 +
+                            0.28 +
 
                         confirmationBalance *
-                            0.20 +
+                            0.18 +
 
                         primary.adx *
-                            0.15 +
+                            0.14 +
 
                         primary.volume *
-                            0.10 +
+                            0.09 +
 
                         primary.structure *
+                            0.09 +
+
+                        primaryFiScore *
                             0.10 +
 
                         (
                             100.0 -
                                 timeframeConflict
                         ) *
-                            0.10 +
+                            0.07 +
 
                         (
                             100.0 -
                                 divergenceRisk
                         ) *
-                            0.05
-                    )
+                            0.03
+                    ) +
+                    forceIndexConflict *
+                        0.15
             )
 
-        /*
-         * FSI = índice de risco do sinal.
-         *
-         * FSI alto = sinal mais vulnerável.
-         */
         val fsi =
             clamp(
                 falseSignal *
@@ -1584,12 +1734,15 @@ object RealtimeMarketAnalyzer {
                         0.10 +
 
                     divergenceRisk *
-                        0.10
+                        0.05 +
+
+                    (
+                        100.0 -
+                            primaryFiScore
+                    ) *
+                        0.05
             )
 
-        /*
-         * Score direcional.
-         */
         val directionalScore =
             clamp(
                 50.0 +
@@ -1601,7 +1754,7 @@ object RealtimeMarketAnalyzer {
                         indicatorBull -
                             indicatorBear
                     ) *
-                        4.5 +
+                        4.0 +
 
                     (
                         mtfBull -
@@ -1613,16 +1766,15 @@ object RealtimeMarketAnalyzer {
                         primary.trend -
                             50.0
                     ) *
-                        0.15
+                        0.15 +
+
+                    (
+                        primaryFiScore -
+                            50.0
+                    ) *
+                        0.20
             )
 
-        /*
-         * SCORE FINAL
-         *
-         * O falso sinal reduz o score.
-         * A confluência e força de tendência
-         * aumentam o score.
-         */
         val score =
             clamp(
                 directionalScore -
@@ -1640,9 +1792,6 @@ object RealtimeMarketAnalyzer {
                         0.05
             )
 
-        /*
-         * Direção dominante.
-         */
         val direction =
             when {
 
@@ -1664,9 +1813,6 @@ object RealtimeMarketAnalyzer {
                     "NEUTRO"
             }
 
-        /*
-         * Regime de mercado.
-         */
         val regime =
             when {
 
@@ -1686,12 +1832,6 @@ object RealtimeMarketAnalyzer {
                     "LATERAL / INDEFINIDO"
             }
 
-        /*
-         * PROVISIONAMENTO
-         *
-         * O motor somente libera uma direção
-         * quando a probabilidade supera o risco.
-         */
         val decision =
             when {
 
@@ -1713,9 +1853,6 @@ object RealtimeMarketAnalyzer {
                     "AGUARDAR"
             }
 
-        /*
-         * Confiança final.
-         */
         val confidence =
             clamp(
                 abs(
@@ -1780,7 +1917,7 @@ object RealtimeMarketAnalyzer {
                 fsi =
                     fsi,
 
-                multiTimeframe =
+                multiTimeFrame =
                     mtfConfluence,
 
                 dataQuality =
