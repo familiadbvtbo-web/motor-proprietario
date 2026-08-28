@@ -2488,12 +2488,12 @@ append(
             )
 
             append(
-                "FSI: ${
-                    "%.1f".format(
-                        realtime.fsi
-                    )
-                }%\n"
-            )
+    "FSI EFETIVO: ${
+        "%.1f".format(
+            effectiveFsi
+        )
+    }%\n"
+)
 
             append(
                 "FALSO SINAL: ${
