@@ -940,6 +940,9 @@ val effectiveFsi =
                         
                         effectiveFsi =
                             effectiveFsi,
+                        
+                        effectiveMtfConfluence =
+    effectiveMtfConfluence,
 
                         deterministic =
                             bestDeterministic,
@@ -978,9 +981,6 @@ val effectiveFsi =
 
                         realtime =
                             realtime,
-
-                        effectiveFsi =
-        effectiveFsi,
 
                         effectiveMtfConfluence =
     effectiveMtfConfluence,
