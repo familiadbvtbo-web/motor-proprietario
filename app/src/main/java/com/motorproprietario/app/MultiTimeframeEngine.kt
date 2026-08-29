@@ -9,7 +9,10 @@ data class MultiTimeframeResult(
     val neutral: Double,
     val direction: String,
     val strongestTimeframe: String,
-    val analyzedTimeframes: Int
+    val analyzedTimeframes: Int,
+    val bullishTimeframes: Int,
+    val bearishTimeframes: Int,
+    val neutralTimeframes: Int
 )
 
 object MultiTimeframeEngine {
@@ -87,7 +90,7 @@ object MultiTimeframeEngine {
             metrics.breakout
 
         val force =
-    metrics.forceIndexScore
+            metrics.forceIndexScore
 
         val emaBias =
             when {
@@ -167,6 +170,15 @@ object MultiTimeframeEngine {
                     "--",
 
                 analyzedTimeframes =
+                    0,
+
+                bullishTimeframes =
+                    0,
+
+                bearishTimeframes =
+                    0,
+
+                neutralTimeframes =
                     0
             )
         }
@@ -179,6 +191,15 @@ object MultiTimeframeEngine {
 
         var neutralWeighted =
             0.0
+
+        var bullishTimeframes =
+            0
+
+        var bearishTimeframes =
+            0
+
+        var neutralTimeframes =
+            0
 
         var totalWeight =
             0.0
@@ -216,15 +237,17 @@ object MultiTimeframeEngine {
                 )
 
             /*
-             * Força direcional:
+             * Classificação individual:
              *
-             * > 50 = comprador
-             * < 50 = vendedor
-             * próximo de 50 = neutro
+             * >= 55 = comprador
+             * <= 45 = vendedor
+             * 45–55 = neutro
              */
             when {
 
                 score >= 55.0 -> {
+
+                    bullishTimeframes++
 
                     bullishWeighted +=
                         (
@@ -236,6 +259,8 @@ object MultiTimeframeEngine {
 
                 score <= 45.0 -> {
 
+                    bearishTimeframes++
+
                     bearishWeighted +=
                         (
                             50.0 -
@@ -245,6 +270,8 @@ object MultiTimeframeEngine {
                 }
 
                 else -> {
+
+                    neutralTimeframes++
 
                     neutralWeighted +=
                         (
@@ -298,6 +325,15 @@ object MultiTimeframeEngine {
                     "--",
 
                 analyzedTimeframes =
+                    0,
+
+                bullishTimeframes =
+                    0,
+
+                bearishTimeframes =
+                    0,
+
+                neutralTimeframes =
                     0
             )
         }
@@ -324,10 +360,9 @@ object MultiTimeframeEngine {
             )
 
         /*
-         * Confluência mede o quanto os timeframes
-         * apontam para a mesma direção.
-         *
-         * Não significa probabilidade de acerto.
+         * Confluência mede a força da direção
+         * dominante descontando a divergência
+         * entre compra e venda.
          */
         val directional =
             maxOf(
@@ -392,7 +427,16 @@ object MultiTimeframeEngine {
                     .count {
                         it.key in
                             timeframeOrder
-                    }
+                    },
+
+            bullishTimeframes =
+                bullishTimeframes,
+
+            bearishTimeframes =
+                bearishTimeframes,
+
+            neutralTimeframes =
+                neutralTimeframes
         )
     }
 
