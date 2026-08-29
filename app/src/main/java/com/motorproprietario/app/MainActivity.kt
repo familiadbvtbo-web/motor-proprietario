@@ -525,6 +525,14 @@ lastCandleUpdate.clear()
                         ]
                         ?: realtime.metrics.values.first()
 
+                        val mtfResult =
+    MultiTimeframeEngine.calculate(
+        realtime.metrics
+    )
+
+val effectiveMtfConfluence =
+    mtfResult.confluence
+
                 val higherMetrics =
                     realtime.metrics
                         .filterKeys {
