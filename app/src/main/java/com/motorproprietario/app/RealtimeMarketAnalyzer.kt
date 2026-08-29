@@ -1378,6 +1378,7 @@ object RealtimeMarketAnalyzer {
     forceIndexScore(
         candles
         )
+    )
     }
 
     fun analyze(
