@@ -2343,6 +2343,42 @@ private fun timeframeRank(
             )
 
             append(
+    "CONFLUÊNCIA MULTI-TIMEFRAME\n\n"
+)
+
+append(
+    "MTF: ${
+        "%.1f".format(
+            effectiveMtfConfluence
+        )
+    }%\n"
+)
+
+append(
+    "TIMEFRAMES ANALISADOS: ${
+        mtfAnalyzed
+    }\n"
+)
+
+append(
+    "COMPRA: ${
+        mtfBull
+    }\n"
+)
+
+append(
+    "VENDA: ${
+        mtfBear
+    }\n"
+)
+
+append(
+    "NEUTRO: ${
+        mtfNeutral
+    }\n\n"
+)
+            
+            append(
                 "━━━━━━━━━━━━━━━━━━━━\n"
             )
 
