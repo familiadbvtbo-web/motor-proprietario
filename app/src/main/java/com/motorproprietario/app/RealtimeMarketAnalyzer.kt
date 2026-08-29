@@ -1568,27 +1568,6 @@ val timeframeConflict =
         0.0
     }
 
-        val timeframeConflict =
-            if (
-                mtfBull > 0 &&
-                mtfBear > 0
-            ) {
-
-                min(
-                    100.0,
-                    (
-                        min(
-                            mtfBull,
-                            mtfBear
-                        ).toDouble() /
-                            mtfDirections.size
-                    ) *
-                        100.0
-                )
-
-            } else {
-                0.0
-            }
 
         /*
          * FI do timeframe principal.
