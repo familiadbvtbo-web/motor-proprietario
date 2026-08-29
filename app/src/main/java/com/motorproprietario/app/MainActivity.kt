@@ -640,7 +640,8 @@ val effectiveMtfConfluence =
                 val bestTimeframe =
                     findBestTimeframe(
                         realtime,
-                        candles
+                        candles,
+                        effectiveMtfConfluence
                     )
 
                 val bestMetrics =
@@ -1705,7 +1706,10 @@ if (
             RealtimeAnalysis,
 
         candles:
-            Map<String, List<MarketCandle>>
+            Map<String, List<MarketCandle>>,
+mtfConfluence:
+    Double
+        
     ): String {
 
         val candidates =
@@ -1753,7 +1757,7 @@ if (
                             metrics,
 
                         mtfConfluence =
-                            realtime.mtfConfluence,
+                            mtfConfluence,
 
                         falseSignalRisk =
                             realtime.fsi,
