@@ -29,6 +29,7 @@ data class QuantMetrics(
     val candlePattern: Double,
     val divergence: Double,
     val forceIndex: Double = 0.0
+    val forceIndexScore: Double = 50.0
 )
 
 data class RealtimeAnalysis(
@@ -1372,6 +1373,10 @@ object RealtimeMarketAnalyzer {
                 ),
             forceIndex =
                 forceIndexValue
+
+            forceIndexScore =
+    forceIndexScore(
+        candles
         )
     }
 
