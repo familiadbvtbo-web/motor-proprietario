@@ -890,8 +890,8 @@ val effectiveFsi =
                                     "NEUTRO",
 
                             confirmation =
-                                realtime.mtfConfluence >=
-                                    60.0,
+    effectiveMtfConfluence >=
+        60.0,
 
                             continuation =
                                 when (
@@ -978,6 +978,9 @@ val effectiveFsi =
 
                         realtime =
                             realtime,
+
+                        effectiveMtfConfluence =
+    effectiveMtfConfluence,
 
                         finalProbabilities =
                             bestFinal,
@@ -1077,6 +1080,9 @@ val effectiveFsi =
 
         realtime:
             RealtimeAnalysis,
+
+        effectiveMtfConfluence:
+    Double,
 
         finalProbabilities:
             Triple<Double, Double, Double>,
