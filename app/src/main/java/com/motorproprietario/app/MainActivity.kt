@@ -1789,7 +1789,7 @@ mtfConfluence:
                             metrics,
 
                         mtfConfluence =
-                            realtime.mtfConfluence,
+                            mtfConfluence,
 
                         falseSignalRisk =
                             realtime.fsi,
