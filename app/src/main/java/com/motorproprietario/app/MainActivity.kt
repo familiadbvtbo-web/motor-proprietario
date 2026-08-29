@@ -1232,7 +1232,7 @@ val effectiveFsi =
         dopmDashboardController
             .view()
             ?.setMtf(
-                realtime.mtfConfluence
+                effectiveMtfConfluence
             )
 
         /*
@@ -1250,7 +1250,7 @@ val effectiveFsi =
                 deterministic.confidence,
 
             mtf =
-                realtime.mtfConfluence
+                effectiveMtfConfluence
         )
 
         dopmDashboardController.updateIndicators(
@@ -1824,7 +1824,7 @@ mtfConfluence:
 
                     realtime.fsi,
 
-                    realtime.mtfConfluence
+                    effectiveMtfConfluence
                 )
 
             val directional =
@@ -2047,6 +2047,9 @@ private fun timeframeRank(
         
             effectiveFsi:
         Double,
+
+        effectiveMtfConfluence:
+    Double,
 
         deterministic:
             DeterministicResult,
