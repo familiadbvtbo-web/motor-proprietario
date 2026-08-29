@@ -2141,6 +2141,23 @@ private fun timeframeRank(
                 100.0
             )
 
+            val mtfResult =
+    MultiTimeframeEngine.calculate(
+        realtime.metrics
+    )
+
+val mtfBull =
+    mtfResult.bullishTimeframes
+
+val mtfBear =
+    mtfResult.bearishTimeframes
+
+val mtfNeutral =
+    mtfResult.neutralTimeframes
+
+val mtfAnalyzed =
+    mtfResult.analyzedTimeframes
+
         val deterministicLevel =
             when {
 
