@@ -664,7 +664,7 @@ val effectiveMtfConfluence =
                                 bestMetrics,
 
                             mtfConfluence =
-                                realtime.mtfConfluence,
+                               effectiveMtfConfluence,
 
                             falseSignalRisk =
                                 realtime.fsi,
@@ -782,7 +782,7 @@ val effectiveFsi =
                                 bestMetrics,
 
                             mtfConfluence =
-                                realtime.mtfConfluence,
+    effectiveMtfConfluence,
 
                             falseSignalRisk =
                                   effectiveFsi,
@@ -821,7 +821,7 @@ val effectiveFsi =
 
         effectiveFsi,
 
-        realtime.mtfConfluence
+        effectiveMtfConfluence
     )
 
                 /*
