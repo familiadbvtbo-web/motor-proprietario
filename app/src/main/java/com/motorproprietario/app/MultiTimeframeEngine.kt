@@ -87,7 +87,7 @@ object MultiTimeframeEngine {
             metrics.breakout
 
         val force =
-            metrics.forceIndex
+    metrics.forceIndexScore
 
         val emaBias =
             when {
