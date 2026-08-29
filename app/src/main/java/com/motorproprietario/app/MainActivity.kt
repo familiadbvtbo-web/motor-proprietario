@@ -979,6 +979,9 @@ val effectiveFsi =
                         realtime =
                             realtime,
 
+                        effectiveFsi =
+        effectiveFsi,
+
                         effectiveMtfConfluence =
     effectiveMtfConfluence,
 
@@ -1824,7 +1827,7 @@ mtfConfluence:
 
                     realtime.fsi,
 
-                    effectiveMtfConfluence
+                    mtfConfluence
                 )
 
             val directional =
