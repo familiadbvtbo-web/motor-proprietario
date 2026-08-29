@@ -1372,7 +1372,7 @@ object RealtimeMarketAnalyzer {
                     candles
                 ),
             forceIndex =
-                forceIndexValue
+                forceIndexValue,
 
             forceIndexScore =
     forceIndexScore(
