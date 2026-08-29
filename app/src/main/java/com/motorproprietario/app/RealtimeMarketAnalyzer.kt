@@ -1524,52 +1524,49 @@ object RealtimeMarketAnalyzer {
                 totalWeight
 
         val primary =
-            metrics["M15"]
-                ?: metrics.values.first()
+    metrics["M15"]
+        ?: metrics.values.first()
 
-        val h1 =
-            metrics["H1"]
-                ?: primary
+val mtfResult =
+    MultiTimeframeEngine.calculate(
+        metrics
+    )
 
-        val h4 =
-            metrics["H4"]
-                ?: primary
+val mtfConfluence =
+    mtfResult.confluence
 
-        val d1 =
-            metrics["D1"]
-                ?: primary
+val mtfBull =
+    mtfResult.bullishTimeframes
 
-        val mtfDirections =
-            listOf(
-                primary.trend,
-                h1.trend,
-                h4.trend,
-                d1.trend
-            )
+val mtfBear =
+    mtfResult.bearishTimeframes
 
-        val mtfBull =
-            mtfDirections.count {
-                it >= 60.0
-            }
+val mtfNeutral =
+    mtfResult.neutralTimeframes
 
-        val mtfBear =
-            mtfDirections.count {
-                it <= 40.0
-            }
+val mtfAnalyzed =
+    mtfResult.analyzedTimeframes
 
-        val mtfNeutral =
-            mtfDirections.count {
-                it > 40.0 &&
-                    it < 60.0
-            }
+val timeframeConflict =
+    if (
+        mtfBull > 0 &&
+        mtfBear > 0 &&
+        mtfAnalyzed > 0
+    ) {
 
-        val mtfConfluence =
-            max(
+        min(
+            100.0,
+            min(
                 mtfBull,
                 mtfBear
             ).toDouble() /
-                mtfDirections.size *
+                mtfAnalyzed.toDouble() *
                 100.0
+        )
+
+    } else {
+        0.0
+    }
 
         val timeframeConflict =
             if (
