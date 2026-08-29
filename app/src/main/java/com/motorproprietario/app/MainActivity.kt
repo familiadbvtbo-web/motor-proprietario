@@ -1262,7 +1262,7 @@ val effectiveFsi =
         ?: realtime.metrics["M15"]
         ?: return,
     realtime.fsi,
-    realtime.mtfConfluence
+    effectiveMtfConfluence
 )
 
         /*
