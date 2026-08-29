@@ -1379,7 +1379,7 @@ object RealtimeMarketAnalyzer {
         candles
         )
     
-    }
+    )
 
     fun analyze(
         symbol: String,
