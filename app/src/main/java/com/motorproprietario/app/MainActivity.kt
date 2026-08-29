@@ -1493,39 +1493,55 @@ if (
 }   
 
                 Thread.sleep(
-                    700L
+                    2_000L
                 )
 
             } catch (
-                error: Exception
-            ) {
+    error: Exception
+) {
 
-                val message =
-                    error.message
-                        ?: ""
+    val message =
+        error.message
+            ?.trim()
+            ?.take(180)
+            ?: "ERRO_DESCONHECIDO"
 
-                if (
-                    message.contains(
-                        "429",
-                        ignoreCase = true
-                    )
-                ) {
+    runOnUiThread {
 
-                    candleApiBackoffUntil =
-                        System.currentTimeMillis() +
-                            candleApiBackoffMs
+        dopmDashboardController
+            .view()
+            ?.setApi(
+                "TWELVE DATA • $timeframe"
+            )
 
-                    runOnUiThread {
+        dopmDashboardController
+            .view()
+            ?.setTiming(
+                "AGUARDAR",
+                message
+            )
+    }
 
-                        dopmDashboardController
-                            .view()
-                            ?.setApi(
-                                "TWELVE DATA • CACHE"
-                            )
-                    }
+    if (
+        message.contains(
+            "429",
+            ignoreCase = true
+        )
+    ) {
 
-                    break
-                }
+        candleApiBackoffUntil =
+            System.currentTimeMillis() +
+                candleApiBackoffMs
+
+        break
+    }
+
+    /*
+     * Um timeframe com erro não deve
+     * interromper os demais.
+     */
+    continue
+}
             }
         }
     }
