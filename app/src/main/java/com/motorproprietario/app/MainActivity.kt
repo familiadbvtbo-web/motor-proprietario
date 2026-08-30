@@ -998,7 +998,10 @@ val effectiveFsi =
                             entryPlan,
 
                         deterministic =
-                            bestDeterministic
+                            bestDeterministic,
+
+                        metrics =
+                            bestMetrics
                     )
                 }
 
@@ -1100,7 +1103,10 @@ val effectiveFsi =
             EntryPlanResult,
 
         deterministic:
-            DeterministicResult
+            DeterministicResult,
+
+        metrics:
+            QuantMetrics
     ) {
 
         val buy =
@@ -1268,6 +1274,17 @@ val effectiveFsi =
     realtime.fsi,
     effectiveMtfConfluence
 )
+
+        /*
+         * ==================================================
+         * INDICADORES EM TEMPO REAL
+         * ==================================================
+         */
+        dopmDashboardController.updateIndicators(
+            metrics = metrics,
+            fsi = realtime.fsi,
+            mtf = realtime.mtfConfluence
+        )
 
         /*
          * ==================================================

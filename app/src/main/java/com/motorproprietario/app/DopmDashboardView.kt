@@ -290,7 +290,7 @@ private val realizationView = TextView(context)
             dp(10),
             dp(8),
             dp(10),
-            dp(82)
+            dp(90)
         )
 
         content.setBackgroundColor(bg)
@@ -591,12 +591,24 @@ addView(
                 "IBOV"
             )
 
-        assetSpinner.adapter =
-            ArrayAdapter(
-                context,
-                android.R.layout.simple_spinner_dropdown_item,
-                assets
-            )
+        val assetAdapter = object : ArrayAdapter<String>(
+            context,
+            android.R.layout.simple_spinner_item,
+            assets
+        ) {
+            override fun getView(position: Int, convertView: View?, parent: android.view.ViewGroup): View {
+                val v = super.getView(position, convertView, parent)
+                if (v is TextView) {
+                    v.textSize = 11f
+                    v.setTextColor(white)
+                    v.setPadding(dp(2), dp(2), dp(2), dp(2))
+                }
+                return v
+            }
+        }
+        assetAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+
+        assetSpinner.adapter = assetAdapter
 
         assetSpinner.setSelection(0)
 
@@ -951,7 +963,7 @@ addView(
         decisionView.apply {
 
             text = "AGUARDAR"
-            textSize = 23f
+            textSize = 17f
             setTextColor(white)
 
             setTypeface(
@@ -1859,6 +1871,13 @@ append(
             0,
             dp(4)
         )
+
+        bottomNavigation.background =
+            rounded(
+                bg,
+                border,
+                12
+            )
 
         listOf(
             "⌂\nPrincipal",
