@@ -2,7 +2,6 @@ package com.motorproprietario.app
 
 import kotlin.math.abs
 import kotlin.math.max
-import kotlin.math.min
 
 data class DeterministicInput(
     val metrics: QuantMetrics,
@@ -47,12 +46,6 @@ object DeterministicEngine {
         )
     }
 
-    private fun directional(
-        value: Double
-    ): Double {
-        return clamp(value)
-    }
-
     private fun average(
         values: List<Double>
     ): Double {
@@ -72,85 +65,89 @@ object DeterministicEngine {
     }
 
     /*
-     * ==================================================
-     * 1. PRESSÃO COMPRADORA
-     * ==================================================
+     * ============================================================
+     * PRESSÃO COMPRADORA
+     * ============================================================
      */
 
     private fun buyPressure(
         m: QuantMetrics
     ): Double {
 
-        val trend =
-            directional(
-                m.trend
-            )
-
-        val momentum =
-            directional(
-                m.momentum
-            )
-
-        val structure =
-            directional(
-                m.structure
-            )
-
-        val candle =
-            directional(
-                m.candlePattern
-            )
-
-        val breakout =
-            directional(
-                m.breakout
-            )
-
-        val volume =
-            directional(
-                m.volume
-            )
-
         val ema =
             when {
 
                 m.ema9 > m.ema21 &&
-                    m.ema21 >= m.ema50 ->
+                    m.ema21 > m.ema50 ->
                     90.0
 
                 m.ema9 > m.ema21 ->
                     70.0
 
-                else ->
+                m.ema9 < m.ema21 ->
                     30.0
+
+                else ->
+                    50.0
             }
 
         val macd =
-            if (
-                m.macd >
-                m.macdSignal
-            ) {
-                70.0
-            } else {
-                30.0
+            when {
+
+                m.macd > m.macdSignal ->
+                    70.0
+
+                m.macd < m.macdSignal ->
+                    30.0
+
+                else ->
+                    50.0
+            }
+
+        /*
+         * Volume sozinho não indica compra.
+         * Ele apenas confirma quando existe direção.
+         */
+
+        val volumeConfirmation =
+            when {
+
+                m.volume >= 60.0 &&
+                    (
+                        m.trend >= 55.0 ||
+                        m.momentum >= 55.0 ||
+                        m.breakout >= 55.0
+                    ) ->
+                    m.volume
+
+                else ->
+                    50.0
             }
 
         return clamp(
-            trend * 0.18 +
-            momentum * 0.12 +
-            structure * 0.18 +
-            candle * 0.10 +
-            breakout * 0.12 +
-            volume * 0.10 +
-            ema * 0.10 +
+
+            m.trend * 0.20 +
+
+            m.momentum * 0.12 +
+
+            m.structure * 0.16 +
+
+            m.candlePattern * 0.10 +
+
+            m.breakout * 0.12 +
+
+            volumeConfirmation * 0.08 +
+
+            ema * 0.12 +
+
             macd * 0.10
         )
     }
 
     /*
-     * ==================================================
-     * 2. PRESSÃO VENDEDORA
-     * ==================================================
+     * ============================================================
+     * PRESSÃO VENDEDORA
+     * ============================================================
      */
 
     private fun sellPressure(
@@ -159,88 +156,107 @@ object DeterministicEngine {
 
         val trend =
             100.0 -
-                directional(
+                clamp(
                     m.trend
                 )
 
         val momentum =
             100.0 -
-                directional(
+                clamp(
                     m.momentum
                 )
 
         val structure =
             100.0 -
-                directional(
+                clamp(
                     m.structure
                 )
 
         val candle =
             100.0 -
-                directional(
+                clamp(
                     m.candlePattern
                 )
 
         val breakout =
             100.0 -
-                directional(
+                clamp(
                     m.breakout
                 )
 
-        val volume =
-            directional(
-                m.volume
-            )
+        val volumeConfirmation =
+            when {
+
+                m.volume >= 60.0 &&
+                    (
+                        m.trend <= 45.0 ||
+                        m.momentum <= 45.0 ||
+                        m.breakout <= 45.0
+                    ) ->
+                    m.volume
+
+                else ->
+                    50.0
+            }
 
         val ema =
             when {
 
                 m.ema9 < m.ema21 &&
-                    m.ema21 <= m.ema50 ->
+                    m.ema21 < m.ema50 ->
                     90.0
 
                 m.ema9 < m.ema21 ->
                     70.0
 
-                else ->
+                m.ema9 > m.ema21 ->
                     30.0
+
+                else ->
+                    50.0
             }
 
         val macd =
-            if (
-                m.macd <
-                m.macdSignal
-            ) {
-                70.0
-            } else {
-                30.0
+            when {
+
+                m.macd < m.macdSignal ->
+                    70.0
+
+                m.macd > m.macdSignal ->
+                    30.0
+
+                else ->
+                    50.0
             }
 
         return clamp(
-            trend * 0.18 +
+
+            trend * 0.20 +
+
             momentum * 0.12 +
-            structure * 0.18 +
+
+            structure * 0.16 +
+
             candle * 0.10 +
+
             breakout * 0.12 +
-            volume * 0.10 +
-            ema * 0.10 +
+
+            volumeConfirmation * 0.08 +
+
+            ema * 0.12 +
+
             macd * 0.10
         )
     }
 
     /*
-     * ==================================================
-     * 3. ACUMULAÇÃO
+     * ============================================================
+     * ACUMULAÇÃO
+     * ============================================================
      *
-     * Mede:
-     * - compressão
-     * - estabilidade estrutural
-     * - presença de volume
-     * - preparação de rompimento
-     *
-     * Não interpreta isso como prova de atuação
-     * institucional.
-     * ==================================================
+     * Não significa "institucional comprando".
+     * É apenas uma leitura quantitativa de compressão +
+     * estabilidade + atividade.
      */
 
     private fun accumulation(
@@ -256,7 +272,7 @@ object DeterministicEngine {
                     ) * 2.0
             )
 
-        val volatilityCompression =
+        val compression =
             clamp(
                 100.0 -
                     m.volatility
@@ -277,17 +293,21 @@ object DeterministicEngine {
             )
 
         return clamp(
+
             structureStability * 0.30 +
-            volatilityCompression * 0.25 +
+
+            compression * 0.25 +
+
             volumePresence * 0.20 +
+
             breakoutPreparation * 0.25
         )
     }
 
     /*
-     * ==================================================
-     * 4. DISTRIBUIÇÃO
-     * ==================================================
+     * ============================================================
+     * DISTRIBUIÇÃO
+     * ============================================================
      */
 
     private fun distribution(
@@ -324,17 +344,21 @@ object DeterministicEngine {
             )
 
         return clamp(
+
             structureExtreme * 0.25 +
+
             volatility * 0.20 +
+
             divergence * 0.30 +
+
             momentumExtreme * 0.25
         )
     }
 
     /*
-     * ==================================================
-     * 5. EXPANSÃO
-     * ==================================================
+     * ============================================================
+     * EXPANSÃO
+     * ============================================================
      */
 
     private fun expansion(
@@ -365,17 +389,21 @@ object DeterministicEngine {
             )
 
         return clamp(
+
             breakoutStrength * 0.35 +
+
             volumeExpansion * 0.20 +
+
             volatilityExpansion * 0.20 +
+
             trendStrength * 0.25
         )
     }
 
     /*
-     * ==================================================
-     * 6. EXAUSTÃO
-     * ==================================================
+     * ============================================================
+     * EXAUSTÃO
+     * ============================================================
      */
 
     private fun exhaustion(
@@ -428,17 +456,21 @@ object DeterministicEngine {
             }
 
         return clamp(
+
             rsiExtreme * 0.30 +
+
             divergence * 0.30 +
+
             volatility * 0.15 +
+
             candleRejection * 0.25
         )
     }
 
     /*
-     * ==================================================
-     * 7. LIQUIDEZ / PRESSÃO
-     * ==================================================
+     * ============================================================
+     * LIQUIDEZ / PRESSÃO
+     * ============================================================
      */
 
     private fun liquidityPressure(
@@ -467,16 +499,19 @@ object DeterministicEngine {
             )
 
         return clamp(
+
             breakout * 0.40 +
+
             volume * 0.30 +
+
             structure * 0.30
         )
     }
 
     /*
-     * ==================================================
-     * 8. RISCO DE REALIZAÇÃO
-     * ==================================================
+     * ============================================================
+     * RISCO DE REALIZAÇÃO
+     * ============================================================
      */
 
     private fun realizationRisk(
@@ -502,16 +537,19 @@ object DeterministicEngine {
             )
 
         return clamp(
+
             exhaustionValue * 0.45 +
+
             divergence * 0.30 +
+
             volatility * 0.25
         )
     }
 
     /*
-     * ==================================================
-     * 9. CONFLITO ENTRE TIMEFRAMES
-     * ==================================================
+     * ============================================================
+     * CONFLITO ENTRE TIMEFRAMES
+     * ============================================================
      */
 
     private fun timeframeConflict(
@@ -547,6 +585,9 @@ object DeterministicEngine {
         var conflicts =
             0
 
+        var directionalHigher =
+            0
+
         for (
             h in higher
         ) {
@@ -565,34 +606,38 @@ object DeterministicEngine {
                 }
 
             if (
-                direction != 0 &&
-                direction !=
-                    currentDirection
+                direction != 0
             ) {
-                conflicts++
+
+                directionalHigher++
+
+                if (
+                    direction !=
+                        currentDirection
+                ) {
+
+                    conflicts++
+                }
             }
+        }
+
+        if (
+            directionalHigher == 0
+        ) {
+            return 50.0
         }
 
         return clamp(
             conflicts.toDouble() /
-                higher.size *
+                directionalHigher.toDouble() *
                 100.0
         )
     }
 
     /*
-     * ==================================================
-     * 10. ARMADILHA / FALSO SINAL
-     *
-     * Aqui entram:
-     * - falso sinal externo
-     * - conflito MTF
-     * - divergência
-     * - rejeição
-     * - rompimento sem volume
-     *
-     * Quanto maior, maior o risco.
-     * ==================================================
+     * ============================================================
+     * ARMADILHA / FALSO SINAL
+     * ============================================================
      */
 
     private fun trapRisk(
@@ -627,15 +672,19 @@ object DeterministicEngine {
                 abs(
                     m.breakout -
                         50.0
-                ) > 30.0 &&
+                ) >= 30.0 &&
                 m.volume < 45.0
             ) {
+
                 85.0
+
             } else {
+
                 20.0
             }
 
         return clamp(
+
             clamp(
                 falseSignalRisk
             ) * 0.35 +
@@ -653,9 +702,9 @@ object DeterministicEngine {
     }
 
     /*
-     * ==================================================
-     * 11. CONFIRMAÇÃO
-     * ==================================================
+     * ============================================================
+     * CONFIRMAÇÃO
+     * ============================================================
      */
 
     private fun confirmation(
@@ -678,31 +727,33 @@ object DeterministicEngine {
                 )
             )
 
-        val structuralAgreement =
-            clamp(
-                max(
-                    accumulation,
-                    distribution
-                )
+        val preparation =
+            max(
+                accumulation,
+                expansion
             )
 
         val riskPenalty =
-            clamp(
-                average(
-                    listOf(
-                        trap,
-                        exhaustion,
-                        realization
-                    )
+            average(
+                listOf(
+                    trap,
+                    exhaustion,
+                    realization
                 )
             )
 
         return clamp(
-            directionalAgreement * 0.20 +
+
+            directionalAgreement * 0.25 +
 
             expansion * 0.15 +
 
-            structuralAgreement * 0.10 +
+            preparation * 0.05 +
+
+            (
+                100.0 -
+                    distribution
+            ) * 0.05 +
 
             mtf * 0.25 +
 
@@ -714,14 +765,14 @@ object DeterministicEngine {
             (
                 100.0 -
                     trap
-            ) * 0.15
+            ) * 0.10
         )
     }
 
     /*
-     * ==================================================
-     * 12. MOTOR PRINCIPAL
-     * ==================================================
+     * ============================================================
+     * MOTOR PRINCIPAL
+     * ============================================================
      */
 
     fun calculate(
@@ -742,9 +793,9 @@ object DeterministicEngine {
             )
 
         /*
-         * ------------------------------------------
-         * CÁLCULOS DOS MOTORES
-         * ------------------------------------------
+         * --------------------------------------------------------
+         * PRESSÕES PRIMÁRIAS
+         * --------------------------------------------------------
          */
 
         val buy =
@@ -756,6 +807,12 @@ object DeterministicEngine {
             sellPressure(
                 m
             )
+
+        /*
+         * --------------------------------------------------------
+         * FATORES ESTRUTURAIS
+         * --------------------------------------------------------
+         */
 
         val accumulationValue =
             accumulation(
@@ -801,9 +858,9 @@ object DeterministicEngine {
             )
 
         /*
-         * ------------------------------------------
-         * BASE DIRECIONAL
-         * ------------------------------------------
+         * --------------------------------------------------------
+         * AJUSTE DIRECIONAL
+         * --------------------------------------------------------
          */
 
         var adjustedBuy =
@@ -813,80 +870,53 @@ object DeterministicEngine {
             sell
 
         /*
-         * ------------------------------------------
-         * ACUMULAÇÃO
-         *
-         * Acumulação é tratada como condição
-         * de preparação, não como direção.
-         *
-         * Portanto ela aumenta a confirmação
-         * somente quando existe pressão direcional.
-         * ------------------------------------------
+         * Acumulação não cria direção.
+         * Apenas reforça o lado que já possui vantagem.
          */
 
         val accumulationBoost =
             accumulationValue *
-                0.10
+                0.08
 
-        if (
-            buy >
-                sell
-        ) {
+        when {
 
-            adjustedBuy +=
-                accumulationBoost
+            buy > sell ->
+                adjustedBuy +=
+                    accumulationBoost
 
-        } else if (
-            sell >
-                buy
-        ) {
-
-            adjustedSell +=
-                accumulationBoost
+            sell > buy ->
+                adjustedSell +=
+                    accumulationBoost
         }
 
         /*
-         * ------------------------------------------
-         * EXPANSÃO
-         *
-         * Expansão confirma movimento quando
-         * existe direção definida.
-         * ------------------------------------------
+         * Expansão também não cria direção.
          */
 
         val expansionBoost =
             expansionValue *
-                0.12
+                0.10
 
-        if (
-            buy >
-                sell
-        ) {
+        when {
 
-            adjustedBuy +=
-                expansionBoost
+            buy > sell ->
+                adjustedBuy +=
+                    expansionBoost
 
-        } else if (
-            sell >
-                buy
-        ) {
-
-            adjustedSell +=
-                expansionBoost
+            sell > buy ->
+                adjustedSell +=
+                    expansionBoost
         }
 
         /*
-         * ------------------------------------------
-         * DISTRIBUIÇÃO
-         *
-         * Não é tratada automaticamente como VENDA.
-         * É risco estrutural de continuidade.
-         * ------------------------------------------
+         * Distribuição reduz a confiança,
+         * mas não transforma automaticamente
+         * o mercado em venda.
          */
 
         val distributionPenalty =
             distributionValue *
-                0.12
+                0.10
 
         adjustedBuy -=
             distributionPenalty
@@ -895,11 +925,7 @@ object DeterministicEngine {
             distributionPenalty
 
         /*
-         * ------------------------------------------
-         * EXAUSTÃO
-         *
-         * Reduz a força dos dois lados.
-         * ------------------------------------------
+         * Exaustão reduz os dois lados.
          */
 
         val exhaustionFactor =
@@ -919,12 +945,7 @@ object DeterministicEngine {
             exhaustionFactor
 
         /*
-         * ------------------------------------------
-         * ARMADILHA
-         *
-         * Quanto maior o risco:
-         * menor a confiança direcional.
-         * ------------------------------------------
+         * Armadilha reduz confiança.
          */
 
         val trapFactor =
@@ -944,9 +965,7 @@ object DeterministicEngine {
             trapFactor
 
         /*
-         * ------------------------------------------
-         * REALIZAÇÃO
-         * ------------------------------------------
+         * Realização reduz continuidade.
          */
 
         val realizationFactor =
@@ -966,9 +985,8 @@ object DeterministicEngine {
             realizationFactor
 
         /*
-         * ------------------------------------------
-         * CONFLITO MTF
-         * ------------------------------------------
+         * Conflito entre timeframes reduz a força,
+         * mas não destrói completamente a direção.
          */
 
         val conflictFactor =
@@ -988,35 +1006,22 @@ object DeterministicEngine {
             conflictFactor
 
         /*
-         * ------------------------------------------
-         * LIQUIDEZ
-         *
-         * Liquidez forte sozinha não determina
-         * direção.
-         *
-         * Ela aumenta a qualidade da confirmação.
-         * ------------------------------------------
+         * Liquidez só confirma o lado já dominante.
          */
 
         val liquidityConfirmation =
             liquidityValue *
-                0.08
+                0.06
 
-        if (
-            adjustedBuy >
-                adjustedSell
-        ) {
+        when {
 
-            adjustedBuy +=
-                liquidityConfirmation
+            adjustedBuy > adjustedSell ->
+                adjustedBuy +=
+                    liquidityConfirmation
 
-        } else if (
-            adjustedSell >
-                adjustedBuy
-        ) {
-
-            adjustedSell +=
-                liquidityConfirmation
+            adjustedSell > adjustedBuy ->
+                adjustedSell +=
+                    liquidityConfirmation
         }
 
         adjustedBuy =
@@ -1032,9 +1037,23 @@ object DeterministicEngine {
             )
 
         /*
-         * ------------------------------------------
-         * NEUTRALIDADE
-         * ------------------------------------------
+         * ========================================================
+         * NOVO CÁLCULO DE NEUTRALIDADE
+         * ========================================================
+         *
+         * A neutralidade NÃO recebe simplesmente:
+         *
+         *     100 - diferença
+         *
+         * porque isso fazia o neutro crescer demais.
+         *
+         * Agora ele depende de:
+         *
+         * 1. equilíbrio entre compra/venda;
+         * 2. conflito MTF;
+         * 3. risco de falso sinal;
+         * 4. exaustão;
+         * 5. falta de expansão.
          */
 
         val directionalDifference =
@@ -1043,60 +1062,90 @@ object DeterministicEngine {
                     adjustedSell
             )
 
-        var neutral =
-            100.0 -
-                directionalDifference
+        val balanceNeutral =
+            when {
 
-        /*
-         * Risco elevado aumenta neutralidade.
-         */
+                directionalDifference <= 3.0 ->
+                    60.0
 
-        neutral +=
-            trap *
-                0.35
+                directionalDifference <= 7.0 ->
+                    42.0
 
-        neutral +=
-            conflict *
-                0.20
+                directionalDifference <= 12.0 ->
+                    25.0
 
-        neutral +=
-            exhaustionValue *
-                0.15
+                directionalDifference <= 20.0 ->
+                    12.0
 
-        neutral +=
-            realization *
-                0.10
+                else ->
+                    4.0
+            }
 
-        /*
-         * Se expansão estiver muito baixa,
-         * evita transformar lateralidade em
-         * sinal forte.
-         */
+        val riskNeutral =
+            (
+                trap * 0.30 +
+                conflict * 0.20 +
+                exhaustionValue * 0.15 +
+                realization * 0.10
+            )
 
-        if (
-            expansionValue <
-            30.0
-        ) {
+        val lowExpansionNeutral =
+            if (
+                expansionValue < 35.0
+            ) {
 
-            neutral +=
                 (
-                    30.0 -
+                    35.0 -
                         expansionValue
                 ) *
-                    0.50
-        }
+                    0.45
+
+            } else {
+
+                0.0
+            }
+
+        val weakMtfNeutral =
+            if (
+                mtf < 50.0
+            ) {
+
+                (
+                    50.0 -
+                        mtf
+                ) *
+                    0.20
+
+            } else {
+
+                0.0
+            }
+
+        var neutral =
+            balanceNeutral +
+            riskNeutral * 0.35 +
+            lowExpansionNeutral +
+            weakMtfNeutral
+
+        /*
+         * Limites mais controlados.
+         *
+         * Neutro pode ser alto quando realmente
+         * existe conflito/risco, mas não domina
+         * artificialmente qualquer cenário.
+         */
 
         neutral =
             clamp(
                 neutral,
-                5.0,
-                100.0
+                4.0,
+                75.0
             )
 
         /*
-         * ------------------------------------------
+         * ========================================================
          * NORMALIZAÇÃO
-         * ------------------------------------------
+         * ========================================================
          */
 
         val total =
@@ -1104,63 +1153,94 @@ object DeterministicEngine {
                 adjustedSell +
                 neutral
 
+        if (
+            !total.isFinite() ||
+            total <= 0.0
+        ) {
+
+            return DeterministicResult(
+
+                buyScore =
+                    33.33,
+
+                sellScore =
+                    33.33,
+
+                neutralScore =
+                    33.34,
+
+                directionalBias =
+                    "NEUTRO",
+
+                confidence =
+                    0.0,
+
+                trapRisk =
+                    trap,
+
+                expansion =
+                    expansionValue,
+
+                accumulation =
+                    accumulationValue,
+
+                distribution =
+                    distributionValue,
+
+                exhaustion =
+                    exhaustionValue,
+
+                liquidityPressure =
+                    liquidityValue,
+
+                realizationRisk =
+                    realization,
+
+                timeframeConflict =
+                    conflict,
+
+                confirmation =
+                    0.0
+            )
+        }
+
         val buyProbability =
-            if (
-                total > 0.0
-            ) {
-
-                adjustedBuy /
-                    total *
-                    100.0
-
-            } else {
-                33.33
-            }
+            adjustedBuy /
+                total *
+                100.0
 
         val sellProbability =
-            if (
-                total > 0.0
-            ) {
-
-                adjustedSell /
-                    total *
-                    100.0
-
-            } else {
-                33.33
-            }
+            adjustedSell /
+                total *
+                100.0
 
         val neutralProbability =
-            if (
-                total > 0.0
-            ) {
-
-                neutral /
-                    total *
-                    100.0
-
-            } else {
-                33.34
-            }
+            neutral /
+                total *
+                100.0
 
         /*
-         * ------------------------------------------
+         * ========================================================
          * DIREÇÃO
-         * ------------------------------------------
+         * ========================================================
+         *
+         * Exige vantagem real sobre o neutro.
          */
 
         val directionalBias =
             when {
 
-                buyProbability >=
-                    sellProbability &&
-                buyProbability >=
+                buyProbability >= 55.0 &&
+                    buyProbability >
+                    sellProbability + 3.0 &&
+                    buyProbability >
                     neutralProbability ->
                     "COMPRA"
 
-                sellProbability >=
-                    buyProbability &&
-                sellProbability >=
+                sellProbability >= 55.0 &&
+                    sellProbability >
+                    buyProbability + 3.0 &&
+                    sellProbability >
                     neutralProbability ->
                     "VENDA"
 
@@ -1169,9 +1249,9 @@ object DeterministicEngine {
             }
 
         /*
-         * ------------------------------------------
+         * ========================================================
          * CONFIRMAÇÃO
-         * ------------------------------------------
+         * ========================================================
          */
 
         val confirmationValue =
@@ -1206,16 +1286,16 @@ object DeterministicEngine {
             )
 
         /*
-         * ------------------------------------------
+         * ========================================================
          * CONFIANÇA
+         * ========================================================
          *
-         * Não é probabilidade estatística de lucro.
-         * É confiança interna do conjunto de sinais.
-         * ------------------------------------------
+         * Não representa taxa histórica de acerto.
          */
 
         val confidence =
             clamp(
+
                 confirmationValue * 0.40 +
 
                 mtf * 0.20 +
@@ -1243,9 +1323,9 @@ object DeterministicEngine {
             )
 
         /*
-         * ------------------------------------------
-         * RESULTADO
-         * ------------------------------------------
+         * ========================================================
+         * RESULTADO FINAL
+         * ========================================================
          */
 
         return DeterministicResult(
