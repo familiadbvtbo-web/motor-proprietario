@@ -1400,10 +1400,6 @@ val effectiveFsi =
                 ]
                     ?: 0L
 
-            val cached =
-                candleCache[
-                    timeframe
-                ]
             val persistent =
     marketCandleCache.get(
         symbol =
@@ -1426,15 +1422,30 @@ if (
         ] =
             persistent
     }
+
+    lastCandleUpdate[
+    timeframe
+] =
+    now
 }
 
-            if (
-                cached != null &&
-                now - last <
-                    interval
-            ) {
-                continue
-            }
+val cached =
+    synchronized(
+        candleCache
+    ) {
+        candleCache[
+            timeframe
+        ]
+    }
+
+if (
+    cached != null &&
+    cached.isNotEmpty() &&
+    now - last <
+        interval
+) {
+    continue
+}
 
             try {
 
