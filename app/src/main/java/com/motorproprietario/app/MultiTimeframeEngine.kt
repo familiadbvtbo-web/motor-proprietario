@@ -42,8 +42,10 @@ object MultiTimeframeEngine {
         )
 
     /*
-     * Todos os 10 timeframes participam quando
-     * possuem métricas válidas.
+     * PESOS MTF
+     *
+     * Timeframes maiores têm maior peso,
+     * mas nenhum timeframe pode dominar sozinho.
      */
     private val timeframeWeights =
         mapOf(
@@ -73,56 +75,56 @@ object MultiTimeframeEngine {
         )
     }
 
+    /*
+     * ============================================================
+     * SCORE DIRECIONAL
+     * ============================================================
+     *
+     * 50 = equilíbrio
+     * >50 = pressão compradora
+     * <50 = pressão vendedora
+     */
     private fun directionScore(
         metrics: QuantMetrics
     ): Double {
-
-        val trend =
-            metrics.trend
-
-        val structure =
-            metrics.structure
-
-        val momentum =
-            metrics.momentum
-
-        val breakout =
-            metrics.breakout
-
-        val force =
-            metrics.forceIndexScore
 
         val emaBias =
             when {
 
                 metrics.ema9 > metrics.ema21 &&
-                    metrics.ema21 > metrics.ema50 ->
-                    100.0
+                    metrics.ema21 > metrics.ema50 -> 100.0
 
                 metrics.ema9 < metrics.ema21 &&
-                    metrics.ema21 < metrics.ema50 ->
-                    0.0
+                    metrics.ema21 < metrics.ema50 -> 0.0
 
-                metrics.ema9 > metrics.ema21 ->
-                    65.0
+                metrics.ema9 > metrics.ema21 -> 65.0
 
-                metrics.ema9 < metrics.ema21 ->
-                    35.0
+                metrics.ema9 < metrics.ema21 -> 35.0
 
-                else ->
-                    50.0
+                else -> 50.0
             }
 
         return clamp(
-            trend * 0.22 +
-                structure * 0.18 +
-                momentum * 0.18 +
-                breakout * 0.12 +
-                force * 0.15 +
-                emaBias * 0.15
+
+            metrics.trend * 0.22 +
+
+            metrics.structure * 0.18 +
+
+            metrics.momentum * 0.18 +
+
+            metrics.breakout * 0.12 +
+
+            metrics.forceIndexScore * 0.15 +
+
+            emaBias * 0.15
         )
     }
 
+    /*
+     * ============================================================
+     * FORÇA
+     * ============================================================
+     */
     private fun strength(
         score: Double
     ): Double {
@@ -134,16 +136,24 @@ object MultiTimeframeEngine {
         )
     }
 
+    /*
+     * ============================================================
+     * DIREÇÃO
+     * ============================================================
+     *
+     * A faixa neutra foi ampliada para evitar
+     * classificar pequenos desvios como direção real.
+     */
     private fun direction(
         score: Double
     ): String {
 
         return when {
 
-            score >= 55.0 ->
+            score >= 60.0 ->
                 "COMPRA"
 
-            score <= 45.0 ->
+            score <= 40.0 ->
                 "VENDA"
 
             else ->
@@ -151,6 +161,11 @@ object MultiTimeframeEngine {
         }
     }
 
+    /*
+     * ============================================================
+     * CÁLCULO PRINCIPAL
+     * ============================================================
+     */
     fun calculate(
         metricsByTimeframe:
             Map<String, QuantMetrics>
@@ -161,18 +176,31 @@ object MultiTimeframeEngine {
         ) {
 
             return MultiTimeframeResult(
+
                 confluence = 0.0,
+
                 bullish = 0.0,
+
                 bearish = 0.0,
+
                 neutral = 100.0,
+
                 direction = "NEUTRO",
+
                 strongestTimeframe = "--",
+
                 analyzedTimeframes = 0,
+
                 bullishTimeframes = 0,
+
                 bearishTimeframes = 0,
+
                 neutralTimeframes = 0,
+
                 coverage = 0.0,
-                timeframeDetails = emptyList()
+
+                timeframeDetails =
+                    emptyList()
             )
         }
 
@@ -185,6 +213,9 @@ object MultiTimeframeEngine {
         var neutralWeighted =
             0.0
 
+        var totalWeight =
+            0.0
+
         var bullishTimeframes =
             0
 
@@ -193,9 +224,6 @@ object MultiTimeframeEngine {
 
         var neutralTimeframes =
             0
-
-        var totalWeight =
-            0.0
 
         var strongestTimeframe =
             "--"
@@ -207,7 +235,8 @@ object MultiTimeframeEngine {
             ArrayList<TimeframeDetail>()
 
         /*
-         * Os 10 timeframes são percorridos explicitamente.
+         * Somente timeframes existentes e válidos
+         * entram no cálculo.
          */
         for (
             timeframe in timeframeOrder
@@ -219,18 +248,42 @@ object MultiTimeframeEngine {
                 ]
                     ?: continue
 
+            val values =
+                listOf(
+                    metrics.trend,
+                    metrics.structure,
+                    metrics.momentum,
+                    metrics.breakout,
+                    metrics.forceIndexScore,
+                    metrics.ema9,
+                    metrics.ema21,
+                    metrics.ema50
+                )
+
+            /*
+             * Não deixa métrica inválida contaminar
+             * o cálculo MTF.
+             */
+            if (
+                values.any {
+                    !it.isFinite()
+                }
+            ) {
+                continue
+            }
+
             val weight =
                 timeframeWeights[
                     timeframe
                 ]
-                    ?: 1.0
+                    ?: continue
 
             val score =
                 directionScore(
                     metrics
                 )
 
-            val strength =
+            val localStrength =
                 strength(
                     score
                 )
@@ -241,20 +294,31 @@ object MultiTimeframeEngine {
                 )
 
             details.add(
+
                 TimeframeDetail(
+
                     timeframe =
                         timeframe,
+
                     score =
                         score,
+
                     strength =
-                        strength,
+                        localStrength,
+
                     direction =
                         localDirection,
+
                     weight =
                         weight
                 )
             )
 
+            /*
+             * ==================================================
+             * CLASSIFICAÇÃO
+             * ==================================================
+             */
             when (
                 localDirection
             ) {
@@ -287,6 +351,11 @@ object MultiTimeframeEngine {
 
                     neutralTimeframes++
 
+                    /*
+                     * Neutralidade é mantida separada.
+                     * Ela não é convertida artificialmente
+                     * em compra ou venda.
+                     */
                     neutralWeighted +=
                         (
                             50.0 -
@@ -302,13 +371,18 @@ object MultiTimeframeEngine {
             totalWeight +=
                 weight
 
+            /*
+             * Melhor timeframe =
+             * maior força direcional,
+             * não simplesmente o maior peso.
+             */
             if (
-                strength >
+                localStrength >
                     strongestStrength
             ) {
 
                 strongestStrength =
-                    strength
+                    localStrength
 
                 strongestTimeframe =
                     timeframe
@@ -318,6 +392,11 @@ object MultiTimeframeEngine {
         val analyzedTimeframes =
             details.size
 
+        /*
+         * ============================================================
+         * COBERTURA REAL
+         * ============================================================
+         */
         val coverage =
             (
                 analyzedTimeframes.toDouble() /
@@ -326,51 +405,109 @@ object MultiTimeframeEngine {
                 100.0
 
         if (
+            analyzedTimeframes == 0 ||
             totalWeight <= 0.0
         ) {
 
             return MultiTimeframeResult(
+
                 confluence = 0.0,
+
                 bullish = 0.0,
+
                 bearish = 0.0,
+
                 neutral = 100.0,
+
                 direction = "NEUTRO",
+
                 strongestTimeframe = "--",
+
                 analyzedTimeframes = 0,
+
                 bullishTimeframes = 0,
+
                 bearishTimeframes = 0,
+
                 neutralTimeframes = 0,
+
                 coverage =
                     coverage.coerceIn(
                         0.0,
                         100.0
                     ),
+
                 timeframeDetails =
                     details
             )
         }
 
+        /*
+         * ============================================================
+         * FORÇA DIRECIONAL NORMALIZADA
+         * ============================================================
+         */
+        val bullishRaw =
+            (
+                bullishWeighted /
+                    totalWeight
+            )
+
+        val bearishRaw =
+            (
+                bearishWeighted /
+                    totalWeight
+            )
+
+        /*
+         * O valor máximo teórico de cada lado
+         * é aproximadamente 50.
+         *
+         * Multiplicamos por 2 para obter 0–100.
+         */
         val bullish =
             clamp(
-                bullishWeighted /
-                    totalWeight *
-                    2.0
+                bullishRaw * 2.0
             )
 
         val bearish =
             clamp(
-                bearishWeighted /
-                    totalWeight *
-                    2.0
+                bearishRaw * 2.0
             )
+
+        /*
+         * ============================================================
+         * NEUTRO
+         * ============================================================
+         *
+         * O neutro não deve ser simplesmente
+         * 100 - compra - venda.
+         *
+         * Isso poderia produzir um neutro artificialmente
+         * alto quando há pouca cobertura.
+         */
+        val directionalTotal =
+            (
+                bullish +
+                    bearish
+            ).coerceAtMost(
+                100.0
+            )
+
+        val neutralBase =
+            100.0 -
+                directionalTotal
 
         val neutral =
             clamp(
-                100.0 -
-                    bullish -
-                    bearish
+                neutralBase
             )
 
+        /*
+         * ============================================================
+         * CONFLUÊNCIA
+         * ============================================================
+         */
         val directional =
             maxOf(
                 bullish,
@@ -383,40 +520,63 @@ object MultiTimeframeEngine {
                 bearish
             )
 
+        /*
+         * Quanto maior o conflito entre compra
+         * e venda, menor a confluência.
+         */
+        val conflictPenalty =
+            disagreement *
+                0.75
+
         val rawConfluence =
             clamp(
                 directional -
-                    disagreement *
-                    0.75
+                    conflictPenalty
             )
 
         /*
-         * Se algum dos 10 timeframes ainda não estiver disponível,
-         * a confluência não pode fingir que analisou os 10.
+         * ============================================================
+         * PENALIDADE DE COBERTURA
+         * ============================================================
+         *
+         * Se apenas M15 foi analisado,
+         * o sistema não pode declarar 100% de
+         * confluência MTF.
          */
         val coverageFactor =
             coverage.coerceIn(
                 0.0,
                 100.0
-            ) / 100.0
+            ) /
+                100.0
 
         val confluence =
             clamp(
+
                 rawConfluence *
                     coverageFactor
             )
 
+        /*
+         * ============================================================
+         * DIREÇÃO FINAL
+         * ============================================================
+         *
+         * Exige vantagem mínima de 10 pontos.
+         */
         val finalDirection =
             when {
 
-                bullish >= bearish &&
-                    bullish >= neutral &&
-                    bullish >= 55.0 ->
+                bullish >= 60.0 &&
+                    bullish >
+                    bearish + 10.0 ->
+
                     "COMPRA"
 
-                bearish >= bullish &&
-                    bearish >= neutral &&
-                    bearish >= 55.0 ->
+                bearish >= 60.0 &&
+                    bearish >
+                    bullish + 10.0 ->
+
                     "VENDA"
 
                 else ->
@@ -424,6 +584,7 @@ object MultiTimeframeEngine {
             }
 
         return MultiTimeframeResult(
+
             confluence =
                 confluence,
 
@@ -465,6 +626,11 @@ object MultiTimeframeEngine {
         )
     }
 
+    /*
+     * ============================================================
+     * RANKING
+     * ============================================================
+     */
     fun timeframeRank(
         timeframe: String
     ): Int {
@@ -476,6 +642,11 @@ object MultiTimeframeEngine {
             .coerceAtLeast(0)
     }
 
+    /*
+     * ============================================================
+     * TIMEFRAME SUPERIOR
+     * ============================================================
+     */
     fun isHigherTimeframe(
         reference: String,
         candidate: String
@@ -489,6 +660,11 @@ object MultiTimeframeEngine {
             )
     }
 
+    /*
+     * ============================================================
+     * FILTRA TIMEFRAMES SUPERIORES
+     * ============================================================
+     */
     fun higherTimeframes(
         reference: String,
         metrics:
