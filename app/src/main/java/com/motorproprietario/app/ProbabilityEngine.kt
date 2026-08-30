@@ -4,16 +4,6 @@ import kotlin.math.abs
 import kotlin.math.max
 
 data class ProbabilityCalibration(
-    /*
-     * Pesos da evidência probabilística.
-     *
-     * Estes são parâmetros iniciais.
-     * NÃO representam taxa de acerto.
-     *
-     * O CalibrationEngine poderá substituí-los
-     * após backtest e validação fora da amostra.
-     */
-
     val trendWeight: Double = 0.22,
     val momentumWeight: Double = 0.16,
     val priceActionWeight: Double = 0.20,
@@ -22,13 +12,18 @@ data class ProbabilityCalibration(
     val fibonacciWeight: Double = 0.07,
     val institutionalWeight: Double = 0.15,
 
-    val mtfBaseFactor: Double = 0.70,
-    val mtfRangeFactor: Double = 0.30,
+    val mtfBaseFactor: Double = 0.85,
+    val mtfRangeFactor: Double = 0.15,
 
-    val falseSignalMaximumPenalty: Double = 0.65,
+    val falseSignalMaximumPenalty: Double = 0.55,
 
-    val neutralBase: Double = 12.0,
-    val falseSignalNeutralWeight: Double = 0.42
+    /*
+     * NEUTRO não recebe mais valores enormes
+     * apenas porque existe pequena diferença
+     * entre compra e venda.
+     */
+    val neutralBase: Double = 8.0,
+    val falseSignalNeutralWeight: Double = 0.20
 ) {
 
     fun normalized(): ProbabilityCalibration {
@@ -42,78 +37,64 @@ data class ProbabilityCalibration(
                 mtfWeight,
                 fibonacciWeight,
                 institutionalWeight
-            )
-                .map {
-                    if (
-                        it.isFinite() &&
-                        it >= 0.0
-                    ) {
-                        it
-                    } else {
-                        0.0
-                    }
+            ).map {
+                if (
+                    it.isFinite() &&
+                    it >= 0.0
+                ) {
+                    it
+                } else {
+                    0.0
                 }
+            }
 
         val total =
             rawWeights.sum()
 
-        if (
-            total <= 0.0
-        ) {
-
+        if (total <= 0.0) {
             return ProbabilityCalibration()
         }
 
         return copy(
-
             trendWeight =
-                rawWeights[0] /
-                    total,
+                rawWeights[0] / total,
 
             momentumWeight =
-                rawWeights[1] /
-                    total,
+                rawWeights[1] / total,
 
             priceActionWeight =
-                rawWeights[2] /
-                    total,
+                rawWeights[2] / total,
 
             volumeWeight =
-                rawWeights[3] /
-                    total,
+                rawWeights[3] / total,
 
             mtfWeight =
-                rawWeights[4] /
-                    total,
+                rawWeights[4] / total,
 
             fibonacciWeight =
-                rawWeights[5] /
-                    total,
+                rawWeights[5] / total,
 
             institutionalWeight =
-                rawWeights[6] /
-                    total
+                rawWeights[6] / total
         )
     }
 }
 
 data class ProbabilityInput(
     val metrics: QuantMetrics,
+
     val mtfConfluence: Double,
+
     val falseSignalRisk: Double,
 
     val fibonacciBullish: Double = 50.0,
+
     val fibonacciBearish: Double = 50.0,
 
     val institutionalBullish: Double = 50.0,
+
     val institutionalBearish: Double = 50.0,
 
-    /*
-     * Configuração calibrável.
-     *
-     * Mantém compatibilidade porque possui
-     * valor padrão.
-     */
     val calibration:
         ProbabilityCalibration =
             ProbabilityCalibration()
@@ -121,21 +102,19 @@ data class ProbabilityInput(
 
 data class ProbabilityResult(
     val buyProbability: Double,
+
     val sellProbability: Double,
+
     val neutralProbability: Double,
 
     val directionalBias: String,
+
     val confidence: Double,
 
     val rawBuyProbability: Double = 0.0,
+
     val rawSellProbability: Double = 0.0,
 
-    /*
-     * Mantido por compatibilidade com o projeto.
-     *
-     * Representa a penalização aplicada pelo
-     * risco de falso sinal.
-     */
     val provisionPenalty: Double = 0.0,
 
     val evidenceStrength: Double = 0.0
@@ -148,6 +127,10 @@ object ProbabilityEngine {
         minValue: Double = 0.0,
         maxValue: Double = 100.0
     ): Double {
+
+        if (!value.isFinite()) {
+            return minValue
+        }
 
         return value.coerceIn(
             minValue,
@@ -180,9 +163,7 @@ object ProbabilityEngine {
             )
 
         val total =
-            b +
-                s +
-                n
+            b + s + n
 
         if (
             total <= 0.0 ||
@@ -197,29 +178,10 @@ object ProbabilityEngine {
         }
 
         return Triple(
-
-            b /
-                total *
-                100.0,
-
-            s /
-                total *
-                100.0,
-
-            n /
-                total *
-                100.0
+            b / total * 100.0,
+            s / total * 100.0,
+            n / total * 100.0
         )
-    }
-
-    private fun evidence(
-        value: Double
-    ): Double {
-
-        return clamp(
-            value
-        ) -
-            50.0
     }
 
     fun calculate(
@@ -233,9 +195,9 @@ object ProbabilityEngine {
             input.calibration.normalized()
 
         /*
-         * ==================================
+         * =========================================================
          * DADOS BASE
-         * ==================================
+         * =========================================================
          */
 
         val trend =
@@ -284,9 +246,9 @@ object ProbabilityEngine {
             )
 
         /*
-         * ==================================
+         * =========================================================
          * EVIDÊNCIAS DERIVADAS
-         * ==================================
+         * =========================================================
          */
 
         val macdEvidence =
@@ -334,18 +296,28 @@ object ProbabilityEngine {
                     50.0
             }
 
+        /*
+         * RSI:
+         *
+         * Evita considerar RSI extremo como
+         * confirmação automática.
+         *
+         * 70+ pode significar exaustão.
+         * 30- pode significar exaustão.
+         */
+
         val rsiEvidence =
             when {
 
-                m.rsi > 55.0 &&
+                m.rsi >= 55.0 &&
                 m.rsi < 70.0 ->
                     65.0
 
                 m.rsi >= 70.0 ->
                     55.0
 
-                m.rsi < 45.0 &&
-                m.rsi > 30.0 ->
+                m.rsi > 30.0 &&
+                m.rsi <= 45.0 ->
                     35.0
 
                 m.rsi <= 30.0 ->
@@ -376,15 +348,9 @@ object ProbabilityEngine {
             )
 
         /*
-         * ==================================
-         * GRUPOS DE EVIDÊNCIA
-         * ==================================
-         *
-         * EMA9/21, EMA21/50 e MACD possuem
-         * correlação entre si.
-         *
-         * Por isso não são tratados como
-         * três fontes totalmente independentes.
+         * =========================================================
+         * GRUPO DE TENDÊNCIA
+         * =========================================================
          */
 
         val trendGroup =
@@ -392,10 +358,22 @@ object ProbabilityEngine {
             emaEvidence * 0.25 +
             emaLongEvidence * 0.25
 
+        /*
+         * =========================================================
+         * GRUPO DE MOMENTO
+         * =========================================================
+         */
+
         val momentumGroup =
             momentum * 0.45 +
             rsiEvidence * 0.30 +
             macdEvidence * 0.25
+
+        /*
+         * =========================================================
+         * GRUPO DE PREÇO
+         * =========================================================
+         */
 
         val priceActionGroup =
             structure * 0.35 +
@@ -404,9 +382,9 @@ object ProbabilityEngine {
             divergence * 0.15
 
         /*
-         * ==================================
+         * =========================================================
          * PROBABILIDADE BRUTA
-         * ==================================
+         * =========================================================
          */
 
         val buyRaw =
@@ -469,67 +447,74 @@ object ProbabilityEngine {
                 calibration.institutionalWeight
 
         /*
-         * ==================================
+         * =========================================================
          * DIVERGÊNCIA
-         * ==================================
+         * =========================================================
          */
-
-        val buyDivergencePenalty =
-            if (
-                divergence < 40.0
-            ) {
-
-                (
-                    50.0 -
-                        divergence
-                ) *
-                    0.35
-
-            } else {
-
-                0.0
-            }
-
-        val sellDivergencePenalty =
-            if (
-                divergence > 60.0
-            ) {
-
-                (
-                    divergence -
-                        50.0
-                ) *
-                    0.35
-
-            } else {
-
-                0.0
-            }
 
         var buy =
             max(
                 0.0,
-                buyRaw -
-                    buyDivergencePenalty
+                buyRaw
             )
 
         var sell =
             max(
                 0.0,
-                sellRaw -
-                    sellDivergencePenalty
+                sellRaw
+            )
+
+        if (
+            divergence < 40.0
+        ) {
+
+            buy -=
+                (
+                    50.0 -
+                        divergence
+                ) *
+                    0.30
+        }
+
+        if (
+            divergence > 60.0
+        ) {
+
+            sell -=
+                (
+                    divergence -
+                        50.0
+                ) *
+                    0.30
+        }
+
+        buy =
+            max(
+                0.0,
+                buy
+            )
+
+        sell =
+            max(
+                0.0,
+                sell
             )
 
         /*
-         * ==================================
+         * =========================================================
          * MTF
-         * ==================================
+         * =========================================================
+         *
+         * O MTF reforça a direção, mas não pode
+         * multiplicar a probabilidade excessivamente.
          */
 
         val mtfFactor =
             calibration.mtfBaseFactor +
-                mtf /
-                100.0 *
+                (
+                    mtf /
+                        100.0
+                ) *
                 calibration.mtfRangeFactor
 
         buy *=
@@ -539,18 +524,27 @@ object ProbabilityEngine {
             mtfFactor
 
         /*
-         * ==================================
+         * =========================================================
          * FALSO SINAL
-         * ==================================
+         * =========================================================
+         *
+         * O risco reduz a força direcional.
          */
 
         val provisionFactor =
-            1.0 -
-                (
-                    falseRisk /
-                        100.0
-                ) *
-                calibration.falseSignalMaximumPenalty
+            (
+                1.0 -
+                    (
+                        falseRisk /
+                            100.0
+                    ) *
+                    calibration
+                        .falseSignalMaximumPenalty
+            )
+                .coerceIn(
+                    0.30,
+                    1.0
+                )
 
         val rawBuy =
             buy
@@ -565,9 +559,17 @@ object ProbabilityEngine {
             provisionFactor
 
         /*
-         * ==================================
+         * =========================================================
          * NEUTRALIDADE
-         * ==================================
+         * =========================================================
+         *
+         * CORREÇÃO PRINCIPAL:
+         *
+         * O código anterior adicionava até 35 pontos
+         * de neutralidade para diferenças pequenas.
+         *
+         * Isso podia fazer o NEUTRO dominar mesmo
+         * quando existia evidência direcional.
          */
 
         val directionalDifference =
@@ -582,24 +584,22 @@ object ProbabilityEngine {
         neutral +=
             when {
 
-                directionalDifference <
-                    4.0 ->
-                    35.0
+                directionalDifference < 2.5 ->
+                    10.0
 
-                directionalDifference <
-                    8.0 ->
-                    22.0
+                directionalDifference < 5.0 ->
+                    6.0
 
-                directionalDifference <
-                    14.0 ->
-                    12.0
+                directionalDifference < 8.0 ->
+                    3.0
 
                 else ->
                     0.0
             }
 
         /*
-         * FSI aumenta neutralidade.
+         * FSI aumenta neutralidade,
+         * mas de maneira moderada.
          */
 
         neutral +=
@@ -607,20 +607,21 @@ object ProbabilityEngine {
                 calibration.falseSignalNeutralWeight
 
         /*
-         * Volatilidade elevada com MTF fraco.
+         * Volatilidade extrema com MTF fraco.
          */
 
         if (
             m.volatility >= 80.0 &&
-            mtf < 60.0
+            mtf < 50.0
         ) {
 
             neutral +=
-                12.0
+                6.0
         }
 
         /*
-         * ADX muito baixo.
+         * ADX muito baixo:
+         * mercado sem tendência clara.
          */
 
         if (
@@ -628,20 +629,35 @@ object ProbabilityEngine {
         ) {
 
             neutral +=
-                10.0
+                6.0
+        }
+
+        /*
+         * ADX forte + MTF forte reduzem
+         * a neutralidade artificial.
+         */
+
+        if (
+            m.adx >= 35.0 &&
+            mtf >= 60.0 &&
+            directionalDifference >= 8.0
+        ) {
+
+            neutral -=
+                5.0
         }
 
         neutral =
             clamp(
                 neutral,
-                5.0,
-                92.0
+                3.0,
+                55.0
             )
 
         /*
-         * ==================================
+         * =========================================================
          * NORMALIZAÇÃO
-         * ==================================
+         * =========================================================
          */
 
         val normalized =
@@ -661,23 +677,23 @@ object ProbabilityEngine {
             normalized.third
 
         /*
-         * ==================================
+         * =========================================================
          * VIÉS
-         * ==================================
+         * =========================================================
          */
 
         val directionalBias =
             when {
 
-                buyProbability >=
+                buyProbability >
                     sellProbability &&
-                buyProbability >=
+                buyProbability >
                     neutralProbability ->
                     "COMPRA"
 
-                sellProbability >=
+                sellProbability >
                     buyProbability &&
-                sellProbability >=
+                sellProbability >
                     neutralProbability ->
                     "VENDA"
 
@@ -686,9 +702,9 @@ object ProbabilityEngine {
             }
 
         /*
-         * ==================================
+         * =========================================================
          * FORÇA DA EVIDÊNCIA
-         * ==================================
+         * =========================================================
          */
 
         val strongest =
@@ -701,30 +717,29 @@ object ProbabilityEngine {
             clamp(
 
                 abs(
-                    buyRaw -
-                        sellRaw
+                    rawBuy -
+                        rawSell
                 ) *
-                    1.15 +
+                    1.10 +
 
                 mtf *
-                    0.25 +
+                    0.20 +
 
                 m.adx *
                     0.15 -
 
                 falseRisk *
-                    0.35
+                    0.30
             )
 
         /*
-         * ==================================
+         * =========================================================
          * CONFIANÇA
-         * ==================================
+         * =========================================================
          *
-         * Não é taxa histórica de acerto.
+         * NÃO representa taxa histórica de acerto.
          *
-         * É uma medida interna de força do
-         * cenário atual.
+         * Representa força interna do cenário atual.
          */
 
         val confidence =
