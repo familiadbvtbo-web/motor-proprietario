@@ -735,8 +735,11 @@ object DeterministicEngine {
             )
 
         var neutral =
-            100.0 -
-                difference
+            max(
+                10.0,
+                50.0 -
+                    difference * 0.5
+            )
 
         /*
          * Mercado muito arriscado

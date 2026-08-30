@@ -584,15 +584,15 @@ object ProbabilityEngine {
 
                 directionalDifference <
                     4.0 ->
-                    35.0
+                    20.0
 
                 directionalDifference <
                     8.0 ->
-                    22.0
+                    12.0
 
                 directionalDifference <
                     14.0 ->
-                    12.0
+                    5.0
 
                 else ->
                     0.0
