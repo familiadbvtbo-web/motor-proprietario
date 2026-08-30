@@ -1450,19 +1450,29 @@ if (
             try {
 
                 val fresh =
-                    candleClient.getCandles(
+    candleClient.getCandles(
 
-                        symbol =
-                            selectedAsset,
+        symbol =
+            selectedAsset,
 
-                        timeframe =
-                            timeframe,
+        timeframe =
+            timeframe,
 
-                        outputSize =
-                            1000
-                    )
+        outputSize =
+            1000
+    )
 
-             if (
+runOnUiThread {
+
+    dopmDashboardController
+        .view()
+        ?.setTiming(
+            "CANDLES $timeframe",
+            "RECEBIDOS: ${fresh.size}"
+        )
+}
+
+if (
     fresh.isNotEmpty()
 ) {
 
