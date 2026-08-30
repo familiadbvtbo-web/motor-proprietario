@@ -1159,6 +1159,10 @@ val effectiveFsi =
                 selectedAsset
         )
 
+        dopmDashboardController.updateTimeframe(
+    selectedTimeframe
+)
+
         /*
          * ==================================================
          * DECISÃO
