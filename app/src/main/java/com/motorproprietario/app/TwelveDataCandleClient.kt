@@ -4,6 +4,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import java.net.URLEncoder
+import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import java.util.TimeZone
@@ -23,12 +24,20 @@ class TwelveDataCandleClient {
 
     private val client =
         OkHttpClient.Builder()
-            .connectTimeout(15, TimeUnit.SECONDS)
-            .readTimeout(20, TimeUnit.SECONDS)
+            .connectTimeout(
+                15,
+                TimeUnit.SECONDS
+            )
+            .readTimeout(
+                20,
+                TimeUnit.SECONDS
+            )
             .build()
 
     /*
-     * Timeframes fornecidos diretamente pela Twelve Data.
+     * ============================================================
+     * TIMEFRAMES TWELVE DATA
+     * ============================================================
      */
     private val intervals =
         linkedMapOf(
@@ -44,11 +53,9 @@ class TwelveDataCandleClient {
         )
 
     /*
-     * Limite máximo histórico do Motor.
-     *
-     * Não significa que sempre existirão 1.000 candles.
-     * Se a fonte possuir menos histórico, usamos somente
-     * o histórico realmente disponível.
+     * ============================================================
+     * LIMITES
+     * ============================================================
      */
     companion object {
 
@@ -59,6 +66,11 @@ class TwelveDataCandleClient {
             1000
     }
 
+    /*
+     * ============================================================
+     * CANDLES
+     * ============================================================
+     */
     fun getCandles(
         symbol: String,
         timeframe: String,
@@ -66,12 +78,15 @@ class TwelveDataCandleClient {
     ): List<MarketCandle> {
 
         val normalizedTimeframe =
-            timeframe.uppercase(Locale.US)
+            timeframe.uppercase(
+                Locale.US
+            )
 
         /*
-         * Y1 não é solicitado diretamente.
+         * Y1 não existe como intervalo direto
+         * na Twelve Data.
          *
-         * Ele será construído a partir dos candles mensais.
+         * É construído através dos candles mensais.
          */
         if (
             normalizedTimeframe ==
@@ -81,6 +96,7 @@ class TwelveDataCandleClient {
             return getAnnualCandles(
                 symbol =
                     symbol,
+
                 outputSize =
                     outputSize
             )
@@ -118,12 +134,21 @@ class TwelveDataCandleClient {
             )
         }
 
+        /*
+         * ========================================================
+         * URL
+         * ========================================================
+         *
+         * timezone=UTC é importante porque o datetime
+         * retornado será interpretado em UTC.
+         */
         val url =
             "https://api.twelvedata.com/time_series" +
             "?symbol=$encodedSymbol" +
             "&interval=$interval" +
             "&outputsize=$requestedSize" +
             "&order=ASC" +
+            "&timezone=UTC" +
             "&apikey=$apiKey"
 
         val request =
@@ -136,10 +161,17 @@ class TwelveDataCandleClient {
                 )
                 .build()
 
-        client.newCall(request)
+        client.newCall(
+            request
+        )
             .execute()
             .use { response ->
 
+                /*
+                 * =================================================
+                 * HTTP
+                 * =================================================
+                 */
                 if (
                     !response.isSuccessful
                 ) {
@@ -160,10 +192,18 @@ class TwelveDataCandleClient {
                         body
                     )
 
+                /*
+                 * =================================================
+                 * ERRO DA TWELVE DATA
+                 * =================================================
+                 */
                 if (
                     json.optString(
                         "status"
-                    ) == "error"
+                    ).equals(
+                        "error",
+                        ignoreCase = true
+                    )
                 ) {
 
                     throw RuntimeException(
@@ -174,6 +214,11 @@ class TwelveDataCandleClient {
                     )
                 }
 
+                /*
+                 * =================================================
+                 * VALUES
+                 * =================================================
+                 */
                 val values =
                     json.optJSONArray(
                         "values"
@@ -187,90 +232,166 @@ class TwelveDataCandleClient {
                         values.length()
                     )
 
+                /*
+                 * =================================================
+                 * LEITURA DOS CANDLES
+                 * =================================================
+                 */
                 for (
                     index in
                     0 until values.length()
                 ) {
 
-                    val item =
-                        values.getJSONObject(
-                            index
-                        )
+                    try {
 
-                    val datetime =
-                        item.optString(
-                            "datetime"
-                        )
+                        val item =
+                            values.getJSONObject(
+                                index
+                            )
 
-                    val timestamp =
-                        item.optLong(
-                            "timestamp",
-                            0L
-                        )
+                        /*
+                         * DATETIME REAL DA TWELVE DATA
+                         */
+                        val datetime =
+                            item.optString(
+                                "datetime"
+                            )
 
-                    val open =
-                        item.getString(
-                            "open"
-                        ).toDouble()
+                        /*
+                         * =================================================
+                         * TIMESTAMP
+                         * =================================================
+                         *
+                         * Algumas respostas da Twelve Data
+                         * não trazem timestamp.
+                         *
+                         * Portanto:
+                         *
+                         * 1. tenta timestamp da resposta;
+                         * 2. se não existir, converte datetime.
+                         */
+                        val apiTimestamp =
+                            item.optLong(
+                                "timestamp",
+                                0L
+                            )
 
-                    val high =
-                        item.getString(
-                            "high"
-                        ).toDouble()
+                        val timestamp =
+                            if (
+                                apiTimestamp > 0L
+                            ) {
 
-                    val low =
-                        item.getString(
-                            "low"
-                        ).toDouble()
+                                apiTimestamp
 
-                    val close =
-                        item.getString(
-                            "close"
-                        ).toDouble()
+                            } else {
 
-                    val volume =
-                        item.optString(
-                            "volume",
-                            "0"
-                        ).toDoubleOrNull()
-                            ?: 0.0
+                                parseDatetimeToTimestamp(
+                                    datetime
+                                )
+                            }
 
-                    if (
-                        timestamp > 0L &&
-                        open.isFinite() &&
-                        high.isFinite() &&
-                        low.isFinite() &&
-                        close.isFinite()
+                        /*
+                         * =================================================
+                         * OHLC
+                         * =================================================
+                         */
+                        val open =
+                            item.optString(
+                                "open"
+                            ).toDoubleOrNull()
+
+                        val high =
+                            item.optString(
+                                "high"
+                            ).toDoubleOrNull()
+
+                        val low =
+                            item.optString(
+                                "low"
+                            ).toDoubleOrNull()
+
+                        val close =
+                            item.optString(
+                                "close"
+                            ).toDoubleOrNull()
+
+                        /*
+                         * =================================================
+                         * VOLUME
+                         * =================================================
+                         */
+                        val volume =
+                            item.optString(
+                                "volume",
+                                "0"
+                            ).toDoubleOrNull()
+                                ?: 0.0
+
+                        /*
+                         * =================================================
+                         * VALIDAÇÃO
+                         * =================================================
+                         */
+                        if (
+                            timestamp > 0L &&
+                            open != null &&
+                            high != null &&
+                            low != null &&
+                            close != null &&
+                            open.isFinite() &&
+                            high.isFinite() &&
+                            low.isFinite() &&
+                            close.isFinite()
+                        ) {
+
+                            candles.add(
+                                MarketCandle(
+
+                                    datetime =
+                                        datetime,
+
+                                    timestamp =
+                                        timestamp,
+
+                                    open =
+                                        open,
+
+                                    high =
+                                        high,
+
+                                    low =
+                                        low,
+
+                                    close =
+                                        close,
+
+                                    volume =
+                                        volume
+                                )
+                            )
+                        }
+
+                    } catch (
+                        _: Exception
                     ) {
 
-                        candles.add(
-                            MarketCandle(
-                                datetime =
-                                    datetime,
-
-                                timestamp =
-                                    timestamp,
-
-                                open =
-                                    open,
-
-                                high =
-                                    high,
-
-                                low =
-                                    low,
-
-                                close =
-                                    close,
-
-                                volume =
-                                    volume
-                            )
-                        )
+                        /*
+                         * Um candle inválido não pode
+                         * interromper o restante do histórico.
+                         */
+                        continue
                     }
                 }
 
+                /*
+                 * =================================================
+                 * RESULTADO
+                 * =================================================
+                 */
                 return candles
+                    .distinctBy {
+                        it.timestamp
+                    }
                     .sortedBy {
                         it.timestamp
                     }
@@ -282,14 +403,87 @@ class TwelveDataCandleClient {
 
     /*
      * ============================================================
+     * DATETIME -> TIMESTAMP
+     * ============================================================
+     *
+     * A Twelve Data pode fornecer:
+     *
+     * yyyy-MM-dd HH:mm:ss
+     * yyyy-MM-dd HH:mm
+     * yyyy-MM-dd
+     *
+     * Como a requisição usa timezone=UTC,
+     * a conversão também usa UTC.
+     */
+    private fun parseDatetimeToTimestamp(
+        datetime: String
+    ): Long {
+
+        if (
+            datetime.isBlank()
+        ) {
+
+            return 0L
+        }
+
+        val formats =
+            listOf(
+                "yyyy-MM-dd HH:mm:ss",
+                "yyyy-MM-dd HH:mm",
+                "yyyy-MM-dd"
+            )
+
+        for (
+            pattern in formats
+        ) {
+
+            try {
+
+                val formatter =
+                    SimpleDateFormat(
+                        pattern,
+                        Locale.US
+                    )
+
+                formatter.isLenient =
+                    false
+
+                formatter.timeZone =
+                    TimeZone.getTimeZone(
+                        "UTC"
+                    )
+
+                val date =
+                    formatter.parse(
+                        datetime
+                    )
+
+                if (
+                    date != null
+                ) {
+
+                    return date.time
+                }
+
+            } catch (
+                _: Exception
+            ) {
+
+                /*
+                 * Tenta o próximo formato.
+                 */
+            }
+        }
+
+        return 0L
+    }
+
+    /*
+     * ============================================================
      * ANUAL
      * ============================================================
      *
      * Y1 é construído a partir dos candles mensais.
-     *
-     * Não criamos preço artificial.
-     *
-     * Cada candle anual contém:
      *
      * OPEN  = primeiro open do ano
      * HIGH  = maior high do ano
@@ -373,6 +567,7 @@ class TwelveDataCandleClient {
             if (
                 candles.isEmpty()
             ) {
+
                 continue
             }
 
@@ -384,6 +579,7 @@ class TwelveDataCandleClient {
 
             annual.add(
                 MarketCandle(
+
                     datetime =
                         "${entry.key}-01-01",
 
@@ -415,6 +611,9 @@ class TwelveDataCandleClient {
         }
 
         return annual
+            .distinctBy {
+                it.timestamp
+            }
             .sortedBy {
                 it.timestamp
             }
@@ -465,6 +664,7 @@ class TwelveDataCandleClient {
 
             result[timeframe] =
                 getCandles(
+
                     symbol =
                         symbol,
 
