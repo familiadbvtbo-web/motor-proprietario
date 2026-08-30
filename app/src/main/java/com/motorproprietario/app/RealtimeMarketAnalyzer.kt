@@ -1647,14 +1647,14 @@ object RealtimeMarketAnalyzer {
             when {
 
                 bullish >
-                    bearish * 1.18 &&
+                    bearish * 1.08 &&
                     indicatorBull >
                     indicatorBear &&
                     mtfBull >= mtfBear ->
                     "COMPRA"
 
                 bearish >
-                    bullish * 1.18 &&
+                    bullish * 1.08 &&
                     indicatorBear >
                     indicatorBull &&
                     mtfBear >= mtfBull ->
