@@ -1462,15 +1462,6 @@ if (
             1000
     )
 
-runOnUiThread {
-
-    dopmDashboardController
-        .view()
-        ?.setTiming(
-            "CANDLES $timeframe",
-            "RECEBIDOS: ${fresh.size}"
-        )
-}
 
 if (
     fresh.isNotEmpty()
