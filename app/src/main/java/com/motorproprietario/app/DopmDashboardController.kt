@@ -59,11 +59,15 @@ class DopmDashboardController(
     }
 
     fun updateMarket(
-        price: Double,
-        asset: String
-    ) {
-        activity.runOnUiThread {
-            dashboard?.setPrice(
+    price: Double,
+    asset: String
+) {
+    activity.runOnUiThread {
+        dashboard?.apply {
+
+            setAsset(asset)
+
+            setPrice(
                 String.format(
                     Locale.US,
                     "%.5f",
@@ -72,6 +76,15 @@ class DopmDashboardController(
             )
         }
     }
+}
+
+    fun updateTimeframe(
+    timeframe: String
+) {
+    activity.runOnUiThread {
+        dashboard?.setTimeframe(timeframe)
+    }
+}
 
     fun updateDecision(
         direction: String,
