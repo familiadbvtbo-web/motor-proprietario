@@ -2136,6 +2136,60 @@ append(
         "${format(realizationRisk)}%"
 }
 
+    fun setAsset(
+    value: String
+) {
+    val assets =
+        listOf(
+            "EUR/USD",
+            "GBP/USD",
+            "USD/JPY",
+            "USD/CHF",
+            "AUD/USD",
+            "USD/CAD",
+            "NZD/USD",
+            "EUR/GBP",
+            "EUR/JPY",
+            "GBP/JPY",
+            "BTC/USD",
+            "ETH/USD",
+            "IBOV"
+        )
+
+    val index =
+        assets.indexOf(value)
+
+    if (index >= 0) {
+        suppressSelection = true
+        assetSpinner.setSelection(index)
+        suppressSelection = false
+    }
+}
+
+fun setTimeframe(
+    value: String
+) {
+    val timeframes =
+        listOf(
+            "M1",
+            "M5",
+            "M15",
+            "M30",
+            "H1",
+            "H4",
+            "D1"
+        )
+
+    val index =
+        timeframes.indexOf(value)
+
+    if (index >= 0) {
+        suppressSelection = true
+        timeframeSpinner.setSelection(index)
+        suppressSelection = false
+    }
+}
+    
     fun setBestTimeframe(
         value: String
     ) {
