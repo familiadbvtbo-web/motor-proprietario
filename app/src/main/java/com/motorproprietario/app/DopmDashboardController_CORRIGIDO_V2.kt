@@ -13,6 +13,11 @@ class DopmDashboardController(
 ) {
     private val dashboardView = DopmDashboardView(context)
 
+    fun install() {
+    (dashboardView.context as? android.app.Activity)
+        ?.setContentView(dashboardView)
+}
+
     fun view(): DopmDashboardView = dashboardView
 
     fun setSelectionListeners(
